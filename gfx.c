@@ -1,7 +1,10 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <windows.h>
+#include <stdio.h>
 #include <GL/GL.h>
+#define GL_VERSION_1_0
+#include "glcorearb.h"
 
 typedef uint8_t u8;
 typedef uint16_t u16;
@@ -39,6 +42,28 @@ typedef struct
     u32 Size;
     u8* Data;
 } gfx_font;
+
+static void gfxError(const char* Format, ...)
+{
+    char String[1024];
+
+    va_list VaList;
+    va_start(VaList, Format);
+    vsnprintf(String, sizeof(String), Format, VaList);
+    va_end(VaList);
+
+    OutputDebugStringA(String);
+    Assert(0);
+}
+
+#define GL_DEBUG_TYPE_ERROR               0x824C
+
+static void gfxGlCallback(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const char* message, const void* userParam)
+{
+    gfxError( "GL CALLBACK: %s type = 0x%x, severity = 0x%x, message = %s\n",
+           ( type == GL_DEBUG_TYPE_ERROR ? "** GL ERROR **" : "" ),
+            type, severity, message );
+}
 
 static void gfxFree(void* Data)
 {
@@ -374,9 +399,17 @@ static b32 gfxLoadFont(gfx_font* Font, const char* Name)
 
 gfx_font Font;
 
+#define GL_DEBUG_OUTPUT                   0x92E0
+typedef void (APIENTRYP PFNGLDEBUGMESSAGECALLBACKPROC) (GLDEBUGPROC callback, const void *userParam);
+
 static b32 gfxInit(void)
 {
     b32 Result = 0;
+
+
+
+    glEnable              ( GL_DEBUG_OUTPUT );
+    // glDebugMessageCallback( gfxGlCallback, 0 );
 
     Result = gfxLoadFont(&Font, "spleen-5x8.bdf");
 
