@@ -1,5 +1,7 @@
 #include "gfx.c"
 
+u32 num = 'a';
+
 static LRESULT WindowProc(HWND Window, UINT Msg, WPARAM WParam, LPARAM LParam)
 {
     LRESULT Result = 0;
@@ -13,6 +15,16 @@ static LRESULT WindowProc(HWND Window, UINT Msg, WPARAM WParam, LPARAM LParam)
                 case VK_ESCAPE:
                 {
                     PostQuitMessage(0);
+                } break;
+
+                case VK_LEFT:
+                {
+                    num = (num - 1) & 255;
+                } break;
+
+                case VK_RIGHT:
+                {
+                    num = (num + 1) & 255;
                 } break;
             }
         } break;
@@ -86,26 +98,50 @@ int APIENTRY WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, PSTR CmdLine, i
         TranslateMessage(&Msg);
         DispatchMessage(&Msg);
 
-        glClearColor(0, 0, 0, 0);
-        glClear(GL_COLOR_BUFFER_BIT);
-
         RECT ClientRect;
         Assert(GetClientRect(Window, &ClientRect));
         int Cols = ClientRect.right - ClientRect.left;
         int Rows = ClientRect.bottom - ClientRect.top;
         glViewport(0, 0, Cols, Rows);
 
+        glClearColor(0.0f, 0, 0, 0);
+        glClear(GL_COLOR_BUFFER_BIT);
+
+        glMatrixMode(GL_TEXTURE);
+        glLoadIdentity();
+
+        glMatrixMode(GL_MODELVIEW);
+        glLoadIdentity();
+
+        glMatrixMode(GL_PROJECTION);
+        glLoadIdentity();
+
+        glBindTexture(GL_TEXTURE_2D, Fnt.Text);
+
+        f32 rat = num / 256.0f;
+        f32 bat = rat + 1/256.0f;
         glBegin(GL_TRIANGLES);
         {
-            glColor3f(1.0f, 0.0f, 0.0f); glVertex2f(-0.5f, -0.5f);
-            glColor3f(0.0f, 1.0f, 0.0f); glVertex2f(+0.5f, -0.5f);
-            glColor3f(0.0f, 0.0f, 1.0f); glVertex2f(-0.5f, +0.5f);
+            /* glColor3f(1.0f, 0.0f, 0.0f); */ glTexCoord2f(0.0f, bat); glVertex2f(-1.0f, -1.0f);
+            /* glColor3f(0.0f, 1.0f, 0.0f); */ glTexCoord2f(1.0f, bat); glVertex2f(+1.0f, -1.0f);
+            /* glColor3f(0.0f, 0.0f, 1.0f); */ glTexCoord2f(0.0f, rat); glVertex2f(-1.0f, +1.0f);
 
-            glColor3f(1.0f, 0.0f, 0.0f); glVertex2f(+0.5f, +0.5f);
-            glColor3f(0.0f, 1.0f, 0.0f); glVertex2f(+0.5f, -0.5f);
-            glColor3f(0.0f, 0.0f, 1.0f); glVertex2f(-0.5f, +0.5f);
+            /* glColor3f(1.0f, 0.0f, 0.0f); */ glTexCoord2f(1.0f, rat); glVertex2f(+1.0f, +1.0f);
+            /* glColor3f(0.0f, 1.0f, 0.0f); */ glTexCoord2f(1.0f, bat); glVertex2f(+1.0f, -1.0f);
+            /* glColor3f(0.0f, 0.0f, 1.0f); */ glTexCoord2f(0.0f, rat); glVertex2f(-1.0f, +1.0f);
         }
         glEnd();
+
+        glBindTexture(GL_TEXTURE_2D, 0);
+
+        // glBegin(GL_QUADS);
+        // {
+        //     glColor3f(0.0f, 0.0f, 0.0f); glVertex2f(-1.0f, -1.0f);
+        //     glColor3f(0.0f, 1.0f, 0.0f); glVertex2f(+1.0f, -1.0f);
+        //     glColor3f(0.0f, 0.0f, 1.0f); glVertex2f(-1.0f, +1.0f);
+        //     glColor3f(1.0f, 1.0f, 1.0f); glVertex2f(+1.0f, +1.0f);
+        // }
+        // glEnd();
 
         Assert(SwapBuffers(DC));
     }

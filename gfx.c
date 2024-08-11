@@ -3,8 +3,8 @@
 #include <windows.h>
 #include <stdio.h>
 #include <GL/GL.h>
-#define GL_VERSION_1_0
-#include "glcorearb.h"
+
+typedef char GLchar;
 
 typedef uint8_t u8;
 typedef uint16_t u16;
@@ -16,11 +16,15 @@ typedef int16_t i16;
 typedef int32_t i32;
 typedef int64_t i64;
 
+typedef float f32;
+typedef double f64;
+
 typedef uint32_t b32;
 typedef size_t usz;
 
 #define Assert(x) if(!(x)) { *(int*)(0) = 0; }
 #define ArrLen(x) sizeof(x)/sizeof(x[0])
+#define Min(x, y) ((x) < (y) ? (x) : (y))
 
 typedef struct
 {
@@ -38,10 +42,12 @@ typedef struct
 {
     u32 Cols;
     u32 Rows;
+    u32 Skip;
     u32 Jump;
     u32 Size;
     u8* Data;
-} gfx_font;
+    u32 Text;
+} gfx_fnt;
 
 static void gfxError(const char* Format, ...)
 {
@@ -64,6 +70,14 @@ static void gfxGlCallback(GLenum source, GLenum type, GLuint id, GLenum severity
            ( type == GL_DEBUG_TYPE_ERROR ? "** GL ERROR **" : "" ),
             type, severity, message );
 }
+
+#define GL_DEBUG_OUTPUT                   0x92E0
+
+typedef void (*GLDEBUGPROC) (GLenum source,GLenum type,GLuint id,GLenum severity,GLsizei length,const GLchar *message,const void *userParam);
+
+typedef void (*PFNGLDEBUGMESSAGECALLBACKPROC) (GLDEBUGPROC callback, const void *userParam);
+
+static void (*glDebugMessageCallback) (GLDEBUGPROC callback, const void *userParam);
 
 static void gfxFree(void* Data)
 {
@@ -103,6 +117,15 @@ static void* gfxLoadFile(const char* Name, usz* Size)
 
         CloseHandle(Handle);
     }
+
+    return Result;
+}
+
+static gfx_buf gfxLoadBuf(const char* Name)
+{
+    gfx_buf Result = {0};
+
+    Result.At = gfxLoadFile(Name, &Result.Sz);
 
     return Result;
 }
@@ -253,7 +276,7 @@ static b32 gfxParseLine(gfx_str* Str, gfx_str* Tokens, usz Count)
     return Result;
 }
 
-static b32 gfxReadFont(gfx_font* Font, gfx_str* Str)
+static b32 gfxReadFnt(gfx_fnt* Fnt, gfx_str* Str)
 {
     gfx_str Tokens[8] = {0};
     if(gfxParseLine(Str, Tokens, ArrLen(Tokens)) &&
@@ -269,8 +292,8 @@ static b32 gfxReadFont(gfx_font* Font, gfx_str* Str)
 
             if(gfxStrEqu(Tokens+0, "FONTBOUNDINGBOX"))
             {
-                if(!gfxStrToU32(Tokens+1, &Font->Cols) ||
-                   !gfxStrToU32(Tokens+2, &Font->Rows))
+                if(!gfxStrToU32(Tokens+1, &Fnt->Cols) ||
+                   !gfxStrToU32(Tokens+2, &Fnt->Rows))
                 {
                     // TODO: Logging
                     return 0;
@@ -278,15 +301,16 @@ static b32 gfxReadFont(gfx_font* Font, gfx_str* Str)
             }
             else if(gfxStrEqu(Tokens+0, "CHARS"))
             {
-                if(Font->Data)
+                if(Fnt->Data)
                 {
-                    VirtualFree(Font->Data, 0, MEM_DECOMMIT|MEM_RELEASE);
+                    VirtualFree(Fnt->Data, 0, MEM_DECOMMIT|MEM_RELEASE);
                 }
 
-                Font->Jump = Font->Cols * Font->Rows;
-                Font->Size = Font->Jump * 256;
-                Font->Data = VirtualAlloc(0, Font->Size, MEM_COMMIT|MEM_RESERVE, PAGE_READWRITE);
-                if(!Font->Data)
+                Fnt->Skip = Fnt->Cols * 4 * sizeof(f32);
+                Fnt->Jump = Fnt->Skip * Fnt->Rows;
+                Fnt->Size = Fnt->Jump * 256;
+                Fnt->Data = VirtualAlloc(0, Fnt->Size, MEM_COMMIT|MEM_RESERVE, PAGE_READWRITE);
+                if(!Fnt->Data)
                 {
                     // TODO: Logging
                     return 0;
@@ -319,9 +343,9 @@ static b32 gfxReadFont(gfx_font* Font, gfx_str* Str)
                     }
                     else if(gfxStrEqu(Tokens+0, "BITMAP"))
                     {
-                        u32 Bytes = ((Font->Cols + 7) / 8);
-                        u8* ByteAt = Font->Data + Encoding * Font->Jump;
-                        for(u32 Row = 0; Row < Font->Rows; Row++)
+                        u32 Bytes = ((Fnt->Cols + 7) / 8);
+                        f32* PixelAt = (f32*) (Fnt->Data + Encoding * Fnt->Jump);
+                        for(u32 Row = 0; Row < Fnt->Rows; Row++)
                         {
                             gfx_str Line;
                             if(!gfxGetLine(Str, &Line))
@@ -346,7 +370,17 @@ static b32 gfxReadFont(gfx_font* Font, gfx_str* Str)
                                     return 0;
                                 }
 
-                                *(ByteAt++) = (Hi << 4) | Lo;
+                                u8 Val = (Hi << 4) | Lo;
+                                u32 Left = Fnt->Cols - Idx * 8;
+                                u32 Iters = (Left > 8) ? 8 : Left;
+                                for(u32 Jdx = 0; Jdx < Iters; Jdx++)
+                                {
+                                    *(PixelAt++) = (Val & 0x80) ? 1.0f : 0.0f;
+                                    *(PixelAt++) = 0;
+                                    *(PixelAt++) = 0;
+                                    *(PixelAt++) = 0;
+                                    Val <<= 1;
+                                }
                             }
                         }
                     }
@@ -366,7 +400,7 @@ static b32 gfxReadFont(gfx_font* Font, gfx_str* Str)
     return 1;
 }
 
-static b32 gfxLoadFont(gfx_font* Font, const char* Name)
+static b32 gfxLoadBdf(gfx_fnt* Fnt, const char* Name)
 {
     b32 Result = 0;
 
@@ -379,15 +413,26 @@ static b32 gfxLoadFont(gfx_font* Font, const char* Name)
         gfx_str Buf = {0};
         Buf.Sz = Size;
         Buf.At = Data;
-        if(gfxReadFont(Font, &Buf))
+        if(gfxReadFnt(Fnt, &Buf))
         {
+            GLuint Texture;
+            glGenTextures(1, &Texture);
+            glBindTexture(GL_TEXTURE_2D, Texture);
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, Fnt->Cols * 1, Fnt->Rows * 256, 0, GL_RGBA, GL_FLOAT, Fnt->Data);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
+            glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+            glBindTexture(GL_TEXTURE_2D, 0);
+            Fnt->Text = Texture;
             Result = 1;
         }
         else
         {
-            if(Font->Data)
+            if(Fnt->Data)
             {
-                VirtualFree(Font->Data, 0, MEM_DECOMMIT|MEM_RELEASE);
+                VirtualFree(Fnt->Data, 0, MEM_DECOMMIT|MEM_RELEASE);
             }
         }
 
@@ -397,21 +442,122 @@ static b32 gfxLoadFont(gfx_font* Font, const char* Name)
     return Result;
 }
 
-gfx_font Font;
+typedef struct
+{
+    u32 Cols;
+    u32 Rows;
+    u64 Jump;
+    u64 Size;
+    u8* Data;
+    u32 Text;
+} gfx_img;
 
-#define GL_DEBUG_OUTPUT                   0x92E0
-typedef void (APIENTRYP PFNGLDEBUGMESSAGECALLBACKPROC) (GLDEBUGPROC callback, const void *userParam);
+#pragma pack(push, 1)
+typedef struct
+{
+    char Magic[2];
+    u32 FileSize;
+    u32 Reserved;
+    u32 DataOffset;
+} gfx_bmp_file_header;
 
-static b32 gfxInit(void)
+typedef struct
+{
+    u32 HeaderSize;
+    u32 BitmapWidth;
+    u32 BitmapHeight;
+    u16 ColorPlanes;
+    u16 BitsPerPixel;
+    u32 Compression;
+    u32 ImageSize;
+    u32 HorizontalRes;
+    u32 VerticalRes;
+    u32 PaletteColors;
+    u32 ColorsImportant;
+} gfx_bmp_info_header;
+
+typedef struct
+{
+    gfx_bmp_file_header FileHeader;
+    gfx_bmp_info_header InfoHeader;
+    // u8 Pixels[];
+} gfx_bmp;
+#pragma pack(pop)
+
+#define GL_BGR GL_BGR_EXT
+
+static b32 gfxLoadBmp(gfx_img* Img, const char* Path)
 {
     b32 Result = 0;
 
+    gfx_buf Buf = gfxLoadBuf(Path);
+    if(Buf.At)
+    {
+        gfx_bmp* Bmp;
+        if(Buf.Sz > sizeof(*Bmp))
+        {
+            Bmp = (gfx_bmp*) Buf.At;
+            if(Bmp->FileHeader.Magic[0] == 'B' &&
+               Bmp->FileHeader.Magic[1] == 'M' &&
+               Bmp->InfoHeader.HeaderSize == sizeof(Bmp->InfoHeader))
+            {
+                Img->Cols = Bmp->InfoHeader.BitmapWidth;
+                Img->Rows = Bmp->InfoHeader.BitmapHeight;
+                Img->Jump = (((Img->Cols * 3) + 3) / 4) * 4;
+                Img->Size = Img->Jump * Img->Rows;
+                if(Buf.Sz >= Bmp->FileHeader.DataOffset + Img->Size)
+                {
+                    Img->Data = Buf.At + Bmp->FileHeader.DataOffset;
+                    glGenTextures(1, &Img->Text);
+                    glBindTexture(GL_TEXTURE_2D, Img->Text);
+                    glPixelStorei(GL_PACK_ROW_LENGTH, Img->Cols);
+                    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, Img->Cols, Img->Rows, 0, GL_BGR, GL_UNSIGNED_BYTE, Img->Data);
+                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
+                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
+                    glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+                    glBindTexture(GL_TEXTURE_2D, 0);
+                    Result = 1;
+                }
+                else
+                {
+                    // TODO: Logging
+                }
+            }
+            else
+            {
+                // TODO: Logging
+            }
+        }
+        else
+        {
+            // TODO: Logging
+        }
+    }
+    else
+    {
+        // TODO: Logging
+    }
 
+    return Result;
+}
 
-    glEnable              ( GL_DEBUG_OUTPUT );
-    // glDebugMessageCallback( gfxGlCallback, 0 );
+gfx_fnt Fnt;
+gfx_img Img;
 
-    Result = gfxLoadFont(&Font, "spleen-5x8.bdf");
+static b32 gfxInit(void)
+{
+    b32 Result = 1;
+
+    Assert(glDebugMessageCallback = (PFNGLDEBUGMESSAGECALLBACKPROC) wglGetProcAddress("glDebugMessageCallback"));
+
+    glEnable(GL_TEXTURE_2D);
+    glEnable(GL_DEBUG_OUTPUT);
+    glDebugMessageCallback(gfxGlCallback, 0);
+
+    Assert(gfxLoadBdf(&Fnt, "spleen-32x64.bdf"));
+    Assert(gfxLoadBmp(&Img, "test.bmp"));
 
     return Result;
 }
