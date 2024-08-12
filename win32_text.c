@@ -134,15 +134,6 @@ int APIENTRY WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, PSTR CmdLine, i
 
         glBindTexture(GL_TEXTURE_2D, 0);
 
-        // glBegin(GL_QUADS);
-        // {
-        //     glColor3f(0.0f, 0.0f, 0.0f); glVertex2f(-1.0f, -1.0f);
-        //     glColor3f(0.0f, 1.0f, 0.0f); glVertex2f(+1.0f, -1.0f);
-        //     glColor3f(0.0f, 0.0f, 1.0f); glVertex2f(-1.0f, +1.0f);
-        //     glColor3f(1.0f, 1.0f, 1.0f); glVertex2f(+1.0f, +1.0f);
-        // }
-        // glEnd();
-
         Assert(SwapBuffers(DC));
     }
 

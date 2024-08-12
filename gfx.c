@@ -1,8 +1,12 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <windows.h>
 #include <stdio.h>
-#include <GL/GL.h>
+#include <stdarg.h>
+#include <GL/gl.h>
+
+#ifndef GL_BGR
+#define GL_BGR 0x80E0
+#endif
 
 typedef char GLchar;
 
@@ -49,37 +53,22 @@ typedef struct
     u32 Text;
 } gfx_fnt;
 
-static void gfxError(const char* Format, ...)
+#if defined(BUILD_WIN32)
+
+//
+// WIN32
+//
+
+#include <windows.h>
+
+#define gfxGlGetProcAddress(Name) wglGetProcAddress(Name)
+
+static void* gfxVirtualAlloc(usz Size)
 {
-    char String[1024];
-
-    va_list VaList;
-    va_start(VaList, Format);
-    vsnprintf(String, sizeof(String), Format, VaList);
-    va_end(VaList);
-
-    OutputDebugStringA(String);
-    Assert(0);
+    return VirtualAlloc(0, Size, MEM_COMMIT|MEM_RESERVE, PAGE_READWRITE);
 }
 
-#define GL_DEBUG_TYPE_ERROR               0x824C
-
-static void gfxGlCallback(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const char* message, const void* userParam)
-{
-    gfxError( "GL CALLBACK: %s type = 0x%x, severity = 0x%x, message = %s\n",
-           ( type == GL_DEBUG_TYPE_ERROR ? "** GL ERROR **" : "" ),
-            type, severity, message );
-}
-
-#define GL_DEBUG_OUTPUT                   0x92E0
-
-typedef void (*GLDEBUGPROC) (GLenum source,GLenum type,GLuint id,GLenum severity,GLsizei length,const GLchar *message,const void *userParam);
-
-typedef void (*PFNGLDEBUGMESSAGECALLBACKPROC) (GLDEBUGPROC callback, const void *userParam);
-
-static void (*glDebugMessageCallback) (GLDEBUGPROC callback, const void *userParam);
-
-static void gfxFree(void* Data)
+static void gfxVirtualFree(void* Data)
 {
     VirtualFree(Data, 0, MEM_DECOMMIT|MEM_RELEASE);
 }
@@ -120,6 +109,122 @@ static void* gfxLoadFile(const char* Name, usz* Size)
 
     return Result;
 }
+
+static void gfxDebugPrint(const char* String)
+{
+    OutputDebugStringA(String);
+}
+
+#elif defined(BUILD_LINUX)
+
+//
+// LINUX
+//
+
+#include <sys/mman.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <stdlib.h>
+#include <GL/glx.h>
+
+#define gfxGlGetProcAddress(Name) glXGetProcAddress((const GLubyte*) (Name))
+
+static void* gfxVirtualAlloc(usz Size)
+{
+    return malloc(Size);
+}
+
+static void gfxVirtualFree(void* Data)
+{
+    free(Data);
+}
+
+static void* gfxLoadFile(const char* Name, usz* Size)
+{
+    void* Result = 0;
+
+    int Fd = open(Name, O_RDONLY);
+    if(Fd != -1)
+    {
+        struct stat Stat;
+        if(fstat(Fd, &Stat) == 0)
+        {
+            char* Data = gfxVirtualAlloc(Stat.st_size + 1);
+            if(Data)
+            {
+                ssize_t Count = read(Fd, Data, Stat.st_size);
+                if(Count == Stat.st_size)
+                {
+                    Data[Count] = 0;
+                    *Size = Count;
+                    Result = Data;
+                }
+                else
+                {
+                    // TODO: Logging
+                    gfxVirtualFree(Data);
+                }
+            }
+            else
+            {
+                // TODO: Logging
+            }
+        }
+        else
+        {
+            // TODO: Logging
+        }
+
+        close(Fd);
+    }
+    else
+    {
+        // TODO: Logging
+    }
+
+    return Result;
+}
+
+static void gfxDebugPrint(const char* String)
+{
+    fputs(String, stdout);
+}
+
+#endif
+
+static void gfxError(const char* Format, ...)
+{
+    char String[1024];
+
+    va_list VaList;
+    va_start(VaList, Format);
+    vsnprintf(String, sizeof(String), Format, VaList);
+    va_end(VaList);
+
+    gfxDebugPrint(String);
+
+    Assert(0);
+}
+
+#define GL_DEBUG_TYPE_ERROR               0x824C
+
+static void gfxGlCallback(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const char* message, const void* userParam)
+{
+    gfxError( "GL CALLBACK: %s type = 0x%x, severity = 0x%x, message = %s\n",
+           ( type == GL_DEBUG_TYPE_ERROR ? "** GL ERROR **" : "" ),
+            type, severity, message );
+}
+
+#define GL_DEBUG_OUTPUT                   0x92E0
+
+typedef void (*GLDEBUGPROC) (GLenum source,GLenum type,GLuint id,GLenum severity,GLsizei length,const GLchar *message,const void *userParam);
+
+typedef void (*PFNGLDEBUGMESSAGECALLBACKPROC) (GLDEBUGPROC callback, const void *userParam);
+
+static void (*glDebugMessageCallback) (GLDEBUGPROC callback, const void *userParam);
+
 
 static gfx_buf gfxLoadBuf(const char* Name)
 {
@@ -303,13 +408,13 @@ static b32 gfxReadFnt(gfx_fnt* Fnt, gfx_str* Str)
             {
                 if(Fnt->Data)
                 {
-                    VirtualFree(Fnt->Data, 0, MEM_DECOMMIT|MEM_RELEASE);
+                    gfxVirtualFree(Fnt->Data);
                 }
 
                 Fnt->Skip = Fnt->Cols * 4 * sizeof(f32);
                 Fnt->Jump = Fnt->Skip * Fnt->Rows;
                 Fnt->Size = Fnt->Jump * 256;
-                Fnt->Data = VirtualAlloc(0, Fnt->Size, MEM_COMMIT|MEM_RESERVE, PAGE_READWRITE);
+                Fnt->Data = gfxVirtualAlloc(Fnt->Size);
                 if(!Fnt->Data)
                 {
                     // TODO: Logging
@@ -432,11 +537,11 @@ static b32 gfxLoadBdf(gfx_fnt* Fnt, const char* Name)
         {
             if(Fnt->Data)
             {
-                VirtualFree(Fnt->Data, 0, MEM_DECOMMIT|MEM_RELEASE);
+                gfxVirtualFree(Fnt->Data);
             }
         }
 
-        gfxFree(Data);
+        gfxVirtualFree(Data);
     }
 
     return Result;
@@ -483,8 +588,6 @@ typedef struct
     // u8 Pixels[];
 } gfx_bmp;
 #pragma pack(pop)
-
-#define GL_BGR GL_BGR_EXT
 
 static b32 gfxLoadBmp(gfx_img* Img, const char* Path)
 {
@@ -550,7 +653,7 @@ static b32 gfxInit(void)
 {
     b32 Result = 1;
 
-    Assert(glDebugMessageCallback = (PFNGLDEBUGMESSAGECALLBACKPROC) wglGetProcAddress("glDebugMessageCallback"));
+    Assert(glDebugMessageCallback = (PFNGLDEBUGMESSAGECALLBACKPROC) glXGetProcAddress((const GLubyte*)"glDebugMessageCallback"));
 
     glEnable(GL_TEXTURE_2D);
     glEnable(GL_DEBUG_OUTPUT);
