@@ -2,7 +2,6 @@
 #include <stddef.h>
 #include <stdio.h>
 #include <stdarg.h>
-#include <GL/gl.h>
 
 #ifndef GL_BGR
 #define GL_BGR 0x80E0
@@ -50,7 +49,7 @@ typedef struct
     u32 Jump;
     u32 Size;
     u8* Data;
-    u32 Text;
+    u32 Texture;
 } gfx_fnt;
 
 #if defined(BUILD_WIN32)
@@ -60,6 +59,7 @@ typedef struct
 //
 
 #include <windows.h>
+#include <GL/gl.h>
 
 #define gfxGlGetProcAddress(Name) wglGetProcAddress(Name)
 
@@ -530,7 +530,7 @@ static b32 gfxLoadBdf(gfx_fnt* Fnt, const char* Name)
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
             glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
             glBindTexture(GL_TEXTURE_2D, 0);
-            Fnt->Text = Texture;
+            Fnt->Texture = Texture;
             Result = 1;
         }
         else
@@ -646,14 +646,75 @@ static b32 gfxLoadBmp(gfx_img* Img, const char* Path)
     return Result;
 }
 
+#include <immintrin.h>
+
+typedef float m4f[16];
+typedef float v4f[4];
+
+static void gfxIdentity(m4f M)
+{
+    _mm_store_ps(&M[4*0], _mm_setr_ps(1.0f, 0.0f, 0.0f, 0.0f));
+    _mm_store_ps(&M[4*1], _mm_setr_ps(0.0f, 1.0f, 0.0f, 0.0f));
+    _mm_store_ps(&M[4*2], _mm_setr_ps(0.0f, 0.0f, 1.0f, 0.0f));
+    _mm_store_ps(&M[4*3], _mm_setr_ps(0.0f, 0.0f, 0.0f, 1.0f));
+}
+
+static void gfxOrtho(f32* M, f32 Left, f32 Right, f32 Bottom, f32 Top, f32 Near, f32 Far)
+{
+    M[0]  = 2.0f / (Right - Left);
+    M[1]  = 0.0f;
+    M[2]  = 0.0f;
+    M[3]  = 0.0f;
+
+    M[4]  = 0.0f;
+    M[5]  = 2.0f / (Top - Bottom);
+    M[6]  = 0.0f;
+    M[7]  = 0.0f;
+
+    M[8]  = 0.0f;
+    M[9]  = 0.0f;
+    M[10] = -2.0f / (Far - Near);
+    M[11] = 0.0f;
+
+    M[12] = -(Right + Left) / (Right - Left);
+    M[13] = -(Top + Bottom) / (Top - Bottom);
+    M[14] = -(Far + Near) / (Far - Near);
+    M[15] = 1.0f;
+}
+
 gfx_fnt Fnt;
+
+static void gfxTextAt(float X, float Y, const char* String)
+{
+    glBegin(GL_TRIANGLES);
+
+    char C;
+    while(C = *(String++))
+    {
+        f32 rat = C / 256.0f;
+        f32 bat = rat + 1/256.0f;
+
+        glTexCoord2f(0.0f, bat); glVertex2f(X-Fnt.Cols*0.5f, Y-Fnt.Rows*0.5f);
+        glTexCoord2f(1.0f, bat); glVertex2f(X+Fnt.Cols*0.5f, Y-Fnt.Rows*0.5f);
+        glTexCoord2f(0.0f, rat); glVertex2f(X-Fnt.Cols*0.5f, Y+Fnt.Rows*0.5f);
+
+        glTexCoord2f(1.0f, rat); glVertex2f(X+Fnt.Cols*0.5f, Y+Fnt.Rows*0.5f);
+        glTexCoord2f(1.0f, bat); glVertex2f(X+Fnt.Cols*0.5f, Y-Fnt.Rows*0.5f);
+        glTexCoord2f(0.0f, rat); glVertex2f(X-Fnt.Cols*0.5f, Y+Fnt.Rows*0.5f);
+
+        X += Fnt.Cols;
+    }
+
+    glEnd();
+}
+
 gfx_img Img;
 
 static b32 gfxInit(void)
 {
     b32 Result = 1;
 
-    Assert(glDebugMessageCallback = (PFNGLDEBUGMESSAGECALLBACKPROC) glXGetProcAddress((const GLubyte*)"glDebugMessageCallback"));
+    Assert(glDebugMessageCallback = (PFNGLDEBUGMESSAGECALLBACKPROC) gfxGlGetProcAddress("glDebugMessageCallback"));
 
     glEnable(GL_TEXTURE_2D);
     glEnable(GL_DEBUG_OUTPUT);

@@ -1,1 +1,2 @@
-cl win32_text.c /Fe:text.exe /nologo /MT /W4 /wd4189 /wd4100 /wd4706 /Gw- /GL- /GR- /GS- /Zf /Zi /EHa- /EHs- /EHc- /link /NOLOGO /INCREMENTAL:NO /SUBSYSTEM:Windows /WX /DEBUG:FULL user32.lib opengl32.lib gdi32.lib
+set WFLAGS=/W4 /wd4100 /wd4101 /wd4189 /wd4706
+cl win32_text.c /Fe:text.exe /DBUILD_WIN32=1 /nologo /MT %WFLAGS% /Gw- /GL- /GR- /GS- /Zf /Zi /EHa- /EHs- /EHc- /link /NOLOGO /INCREMENTAL:NO /SUBSYSTEM:Windows /WX /DEBUG:FULL user32.lib opengl32.lib gdi32.lib

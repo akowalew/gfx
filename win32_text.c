@@ -104,33 +104,39 @@ int APIENTRY WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, PSTR CmdLine, i
         int Rows = ClientRect.bottom - ClientRect.top;
         glViewport(0, 0, Cols, Rows);
 
+        POINT CursorPos;
+        Assert(GetCursorPos(&CursorPos));
+        Assert(ScreenToClient(Window, &CursorPos));
+        CursorPos.y = Rows - CursorPos.y;
+
         glClearColor(0.0f, 0, 0, 0);
         glClear(GL_COLOR_BUFFER_BIT);
 
-        glMatrixMode(GL_TEXTURE);
-        glLoadIdentity();
-
-        glMatrixMode(GL_MODELVIEW);
-        glLoadIdentity();
+        m4f ProjectionMatrix;
+        gfxIdentity(ProjectionMatrix);
+        gfxOrtho(ProjectionMatrix, 0, (f32)Cols, 0, (f32)Rows, -1.0f, 1.0f);
 
         glMatrixMode(GL_PROJECTION);
-        glLoadIdentity();
+        glLoadMatrixf(ProjectionMatrix);
 
-        glBindTexture(GL_TEXTURE_2D, Fnt.Text);
+        glBindTexture(GL_TEXTURE_2D, Fnt.Texture);
 
         f32 rat = num / 256.0f;
         f32 bat = rat + 1/256.0f;
+        f32 siz = 32;
         glBegin(GL_TRIANGLES);
         {
-            /* glColor3f(1.0f, 0.0f, 0.0f); */ glTexCoord2f(0.0f, bat); glVertex2f(-1.0f, -1.0f);
-            /* glColor3f(0.0f, 1.0f, 0.0f); */ glTexCoord2f(1.0f, bat); glVertex2f(+1.0f, -1.0f);
-            /* glColor3f(0.0f, 0.0f, 1.0f); */ glTexCoord2f(0.0f, rat); glVertex2f(-1.0f, +1.0f);
+            glTexCoord2f(0.0f, bat); glVertex2f(200-32, 200-64);
+            glTexCoord2f(1.0f, bat); glVertex2f(200+32, 200-64);
+            glTexCoord2f(0.0f, rat); glVertex2f(200-32, 200+64);
 
-            /* glColor3f(1.0f, 0.0f, 0.0f); */ glTexCoord2f(1.0f, rat); glVertex2f(+1.0f, +1.0f);
-            /* glColor3f(0.0f, 1.0f, 0.0f); */ glTexCoord2f(1.0f, bat); glVertex2f(+1.0f, -1.0f);
-            /* glColor3f(0.0f, 0.0f, 1.0f); */ glTexCoord2f(0.0f, rat); glVertex2f(-1.0f, +1.0f);
+            glTexCoord2f(1.0f, rat); glVertex2f(200+32, 200+64);
+            glTexCoord2f(1.0f, bat); glVertex2f(200+32, 200-64);
+            glTexCoord2f(0.0f, rat); glVertex2f(200-32, 200+64);
         }
         glEnd();
+
+        gfxTextAt(CursorPos.x, CursorPos.y, "Hello world!");
 
         glBindTexture(GL_TEXTURE_2D, 0);
 
