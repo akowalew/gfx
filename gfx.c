@@ -480,10 +480,11 @@ static b32 gfxReadFnt(gfx_fnt* Fnt, gfx_str* Str)
                                 u32 Iters = (Left > 8) ? 8 : Left;
                                 for(u32 Jdx = 0; Jdx < Iters; Jdx++)
                                 {
-                                    *(PixelAt++) = (Val & 0x80) ? 1.0f : 0.0f;
-                                    *(PixelAt++) = 0;
-                                    *(PixelAt++) = 0;
-                                    *(PixelAt++) = 0;
+                                    f32 V = (Val & 0x80) ? 1.0f : 0.0f;
+                                    *(PixelAt++) = V;
+                                    *(PixelAt++) = V;
+                                    *(PixelAt++) = V;
+                                    *(PixelAt++) = V;
                                     Val <<= 1;
                                 }
                             }
@@ -554,7 +555,7 @@ typedef struct
     u64 Jump;
     u64 Size;
     u8* Data;
-    u32 Text;
+    u32 Texture;
 } gfx_img;
 
 #pragma pack(push, 1)
@@ -611,8 +612,8 @@ static b32 gfxLoadBmp(gfx_img* Img, const char* Path)
                 if(Buf.Sz >= Bmp->FileHeader.DataOffset + Img->Size)
                 {
                     Img->Data = Buf.At + Bmp->FileHeader.DataOffset;
-                    glGenTextures(1, &Img->Text);
-                    glBindTexture(GL_TEXTURE_2D, Img->Text);
+                    glGenTextures(1, &Img->Texture);
+                    glBindTexture(GL_TEXTURE_2D, Img->Texture);
                     glPixelStorei(GL_PACK_ROW_LENGTH, Img->Cols);
                     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, Img->Cols, Img->Rows, 0, GL_BGR, GL_UNSIGNED_BYTE, Img->Data);
                     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
@@ -650,6 +651,8 @@ static b32 gfxLoadBmp(gfx_img* Img, const char* Path)
 
 typedef float m4f[16];
 typedef float v4f[4];
+typedef float v2f[2];
+typedef float v3f[3];
 
 static void gfxIdentity(m4f M)
 {
@@ -657,6 +660,50 @@ static void gfxIdentity(m4f M)
     _mm_store_ps(&M[4*1], _mm_setr_ps(0.0f, 1.0f, 0.0f, 0.0f));
     _mm_store_ps(&M[4*2], _mm_setr_ps(0.0f, 0.0f, 1.0f, 0.0f));
     _mm_store_ps(&M[4*3], _mm_setr_ps(0.0f, 0.0f, 0.0f, 1.0f));
+}
+
+static void gfxTranslateX(m4f M, f32 X)
+{
+    M[4*3+0] += X;
+}
+
+static void gfxTranslateY(m4f M, f32 Y)
+{
+    M[4*3+1] += Y;
+}
+
+static void gfxTranslateZ(m4f M, f32 Z)
+{
+    M[4*3+2] += Z;
+}
+
+static void gfxTranslate(m4f M, v3f V)
+{
+    M[4*3+0] += V[0];
+    M[4*3+1] += V[1];
+    M[4*3+2] += V[2];
+}
+
+static void gfxScaleX(m4f M, f32 X)
+{
+    M[4*0+0] *= X;
+}
+
+static void gfxScaleY(m4f M, f32 Y)
+{
+    M[4*1+1] *= Y;
+}
+
+static void gfxScaleZ(m4f M, f32 Z)
+{
+    M[4*2+2] *= Z;
+}
+
+static void gfxScale(m4f M, v3f V)
+{
+    M[4*0+0] *= V[0];
+    M[4*1+1] *= V[1];
+    M[4*2+2] *= V[2];
 }
 
 static void gfxOrtho(f32* M, f32 Left, f32 Right, f32 Bottom, f32 Top, f32 Near, f32 Far)
@@ -682,33 +729,136 @@ static void gfxOrtho(f32* M, f32 Left, f32 Right, f32 Bottom, f32 Top, f32 Near,
     M[15] = 1.0f;
 }
 
-gfx_fnt Fnt;
+v2f GfxPos = {0.0f, 0.0f};
+gfx_fnt GfxFnt;
+f32 GfxSep = 5.f;
 
-static void gfxTextAt(float X, float Y, const char* String)
+static void gfxTextAt(v2f Pos, const char* String)
 {
+    glBindTexture(GL_TEXTURE_2D, GfxFnt.Texture);
+
+    f32 X = Pos[0];
+    f32 Y = Pos[1];
+
     glBegin(GL_TRIANGLES);
 
     char C;
     while(C = *(String++))
     {
-        f32 rat = C / 256.0f;
-        f32 bat = rat + 1/256.0f;
+        f32 rat = (C + 0) / 256.0f;
+        f32 bat = (C + 1) / 256.0f;
 
-        glTexCoord2f(0.0f, bat); glVertex2f(X-Fnt.Cols*0.5f, Y-Fnt.Rows*0.5f);
-        glTexCoord2f(1.0f, bat); glVertex2f(X+Fnt.Cols*0.5f, Y-Fnt.Rows*0.5f);
-        glTexCoord2f(0.0f, rat); glVertex2f(X-Fnt.Cols*0.5f, Y+Fnt.Rows*0.5f);
+        glTexCoord2f(0.0f, rat); glVertex2f(X, Y);
+        glTexCoord2f(1.0f, rat); glVertex2f(X+GfxFnt.Cols, Y);
+        glTexCoord2f(0.0f, bat); glVertex2f(X, Y+GfxFnt.Rows);
 
-        glTexCoord2f(1.0f, rat); glVertex2f(X+Fnt.Cols*0.5f, Y+Fnt.Rows*0.5f);
-        glTexCoord2f(1.0f, bat); glVertex2f(X+Fnt.Cols*0.5f, Y-Fnt.Rows*0.5f);
-        glTexCoord2f(0.0f, rat); glVertex2f(X-Fnt.Cols*0.5f, Y+Fnt.Rows*0.5f);
+        glTexCoord2f(1.0f, bat); glVertex2f(X+GfxFnt.Cols, Y+GfxFnt.Rows);
+        glTexCoord2f(1.0f, rat); glVertex2f(X+GfxFnt.Cols, Y);
+        glTexCoord2f(0.0f, bat); glVertex2f(X, Y+GfxFnt.Rows);
 
-        X += Fnt.Cols;
+        X += GfxFnt.Cols;
     }
 
     glEnd();
+
+    glBindTexture(GL_TEXTURE_2D, 0);
 }
 
-gfx_img Img;
+static void gfxText(const char* String)
+{
+    gfxTextAt(GfxPos, String);
+
+    GfxPos[1] += GfxFnt.Rows + GfxSep;
+}
+
+static void gfxImageAt(v2f Pos, gfx_img* Img)
+{
+    f32 X = Pos[0];
+    f32 Y = Pos[1];
+
+    glBindTexture(GL_TEXTURE_2D, Img->Texture);
+
+    glBegin(GL_TRIANGLES);
+
+    glTexCoord2f(0.0f, 1.0f); glVertex2f(X, Y);
+    glTexCoord2f(1.0f, 1.0f); glVertex2f(X+Img->Cols, Y);
+    glTexCoord2f(0.0f, 0.0f); glVertex2f(X, Y+Img->Rows);
+
+    glTexCoord2f(1.0f, 0.0f); glVertex2f(X+Img->Cols, Y+Img->Rows);
+    glTexCoord2f(1.0f, 1.0f); glVertex2f(X+Img->Cols, Y);
+    glTexCoord2f(0.0f, 0.0f); glVertex2f(X, Y+Img->Rows);
+
+    glEnd();
+
+    glBindTexture(GL_TEXTURE_2D, 0);
+}
+
+#define PI_F32   3.14159265358979323846264338327950288f
+
+#include <math.h>
+
+void gfxPolygon(f32 CX, f32 CY, f32 R, u32 N)
+{
+    glBegin(GL_POLYGON);
+    for (u32 Idx = 0; Idx < N; Idx++)
+    {
+        f32 Theta = 2.0f * PI_F32 * Idx / N;
+        f32 X = R * cosf(Theta);
+        f32 Y = R * sinf(Theta);
+
+        glVertex2f(X + CX, Y + CY);
+    }
+    glEnd();
+}
+
+static void gfxColorRGB8(u8 R, u8 G, u8 B)
+{
+    glColor3f(R / 255.F, G / 255.F, B / 255.F);
+}
+
+static void gfxButton(const char* Text)
+{
+    // gfxColorRGB8(66, 150, 250);
+
+    gfxColorRGB8(44, 74, 114);
+
+    usz Len = strlen(Text);
+
+    glBegin(GL_TRIANGLES);
+
+    f32 X1 = GfxPos[0];
+    f32 Y1 = GfxPos[1];
+    f32 X2 = GfxPos[0] + (Len + 1) * GfxFnt.Cols;
+    f32 Y2 = GfxPos[1] + GfxFnt.Rows;
+
+    glVertex2f(X1, Y1);
+    glVertex2f(X2, Y1);
+    glVertex2f(X1, Y2);
+
+    glVertex2f(X2, Y2);
+    glVertex2f(X2, Y1);
+    glVertex2f(X1, Y2);
+
+    glEnd();
+
+    GfxPos[0] += GfxFnt.Cols/2;
+
+    glColor3f(1.0f, 1.0f, 1.0f);
+    gfxText(Text);
+
+    GfxPos[0] -= GfxFnt.Cols/2;
+}
+
+static void gfxBegin(void)
+{
+    GfxPos[0] = GfxSep;
+    GfxPos[1] = GfxSep;
+}
+
+static void gfxEnd(void)
+{
+    glBindTexture(GL_TEXTURE_2D, 0);
+}
 
 static b32 gfxInit(void)
 {
@@ -718,10 +868,12 @@ static b32 gfxInit(void)
 
     glEnable(GL_TEXTURE_2D);
     glEnable(GL_DEBUG_OUTPUT);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
     glDebugMessageCallback(gfxGlCallback, 0);
 
-    Assert(gfxLoadBdf(&Fnt, "spleen-32x64.bdf"));
-    Assert(gfxLoadBmp(&Img, "test.bmp"));
-
+    Assert(gfxLoadBdf(&GfxFnt, "spleen-32x64.bdf"));
+    GfxFnt.Cols/=2;
+    GfxFnt.Rows/=2;
     return Result;
 }

@@ -55,7 +55,7 @@ int APIENTRY WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, PSTR CmdLine, i
     WindowClassEx.cbWndExtra = 0;
     WindowClassEx.hInstance = Instance;
     WindowClassEx.hIcon = 0;
-    WindowClassEx.hCursor = 0;
+    WindowClassEx.hCursor = LoadCursorA(0, IDC_ARROW);
     WindowClassEx.hbrBackground = 0;
     WindowClassEx.lpszMenuName = 0;
     WindowClassEx.lpszClassName = "ViewWindowClass";
@@ -92,6 +92,9 @@ int APIENTRY WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, PSTR CmdLine, i
     Assert(wglMakeCurrent(DC, GLRC));
     Assert(gfxInit());
 
+    gfx_img Img;
+    Assert(gfxLoadBmp(&Img, "test.bmp"));
+
     MSG Msg;
     while(GetMessage(&Msg, 0, 0, 0))
     {
@@ -100,45 +103,60 @@ int APIENTRY WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, PSTR CmdLine, i
 
         RECT ClientRect;
         Assert(GetClientRect(Window, &ClientRect));
-        int Cols = ClientRect.right - ClientRect.left;
-        int Rows = ClientRect.bottom - ClientRect.top;
-        glViewport(0, 0, Cols, Rows);
+        f32 Cols = (f32)(ClientRect.right - ClientRect.left);
+        f32 Rows = (f32)(ClientRect.bottom - ClientRect.top);
+        glViewport(0, 0, (i32)Cols, (i32)Rows);
 
         POINT CursorPos;
         Assert(GetCursorPos(&CursorPos));
         Assert(ScreenToClient(Window, &CursorPos));
-        CursorPos.y = Rows - CursorPos.y;
+
+        v2f Cursor;
+        Cursor[0] = (f32) (CursorPos.x);
+        Cursor[1] = (f32) (CursorPos.y);
 
         glClearColor(0.0f, 0, 0, 0);
         glClear(GL_COLOR_BUFFER_BIT);
+        glClear(GL_DEPTH_BUFFER_BIT);
 
         m4f ProjectionMatrix;
         gfxIdentity(ProjectionMatrix);
-        gfxOrtho(ProjectionMatrix, 0, (f32)Cols, 0, (f32)Rows, -1.0f, 1.0f);
-
+        gfxOrtho(ProjectionMatrix, 0, Cols, 0, Rows, -1.0f, 1.0f);
         glMatrixMode(GL_PROJECTION);
         glLoadMatrixf(ProjectionMatrix);
 
-        glBindTexture(GL_TEXTURE_2D, Fnt.Texture);
+        m4f ModelViewMatrix;
+        gfxIdentity(ModelViewMatrix);
+        gfxTranslateY(ModelViewMatrix, Rows);
+        gfxScaleY(ModelViewMatrix, -1.0f);
+        glMatrixMode(GL_MODELVIEW);
+        glLoadMatrixf(ModelViewMatrix);
 
-        f32 rat = num / 256.0f;
-        f32 bat = rat + 1/256.0f;
-        f32 siz = 32;
-        glBegin(GL_TRIANGLES);
+        m4f TextureMatrix;
+        gfxIdentity(TextureMatrix);
+        glMatrixMode(GL_TEXTURE);
+        glLoadMatrixf(TextureMatrix);
+
+        gfxBegin();
         {
-            glTexCoord2f(0.0f, bat); glVertex2f(200-32, 200-64);
-            glTexCoord2f(1.0f, bat); glVertex2f(200+32, 200-64);
-            glTexCoord2f(0.0f, rat); glVertex2f(200-32, 200+64);
+            glColor3f(1.0f, 1.0f, 1.0f);
+            gfxText("Hello world!");
+            gfxText("Welcome to Windows.");
 
-            glTexCoord2f(1.0f, rat); glVertex2f(200+32, 200+64);
-            glTexCoord2f(1.0f, bat); glVertex2f(200+32, 200-64);
-            glTexCoord2f(0.0f, rat); glVertex2f(200-32, 200+64);
+            // glColor3f(1.0f, 1.0f, 1.0f);
+            // v2f ImgPos = {100.f, 200.f};
+            // gfxImageAt(ImgPos, &Img);
+
+            gfxButton("Push me");
+            gfxButton("I am not kidding");
+            gfxButton("C'mon man!");
+
+            glColor3f(1.0f, 0.0f, 0.0f);
+            gfxTextAt(Cursor, "I am moving");
+
+            gfxPolygon(200, 200, 50, 16);
         }
-        glEnd();
-
-        gfxTextAt(CursorPos.x, CursorPos.y, "Hello world!");
-
-        glBindTexture(GL_TEXTURE_2D, 0);
+        gfxEnd();
 
         Assert(SwapBuffers(DC));
     }
