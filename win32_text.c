@@ -96,10 +96,28 @@ int APIENTRY WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, PSTR CmdLine, i
     Assert(gfxLoadBmp(&Img, "test.bmp"));
 
     MSG Msg;
-    while(GetMessage(&Msg, 0, 0, 0))
+    b32 OneMoreTime = 0;
+    while(1)
     {
-        TranslateMessage(&Msg);
-        DispatchMessage(&Msg);
+        // TODO: Ideally we want to have some smooth animation?
+        if(!OneMoreTime)
+        {
+            if(GetMessage(&Msg, 0, 0, 0))
+            {
+                TranslateMessage(&Msg);
+                DispatchMessage(&Msg);
+
+                OneMoreTime = 1;
+            }
+            else
+            {
+                break;
+            }
+        }
+        else
+        {
+            OneMoreTime = 0;
+        }
 
         RECT ClientRect;
         Assert(GetClientRect(Window, &ClientRect));
@@ -111,9 +129,10 @@ int APIENTRY WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, PSTR CmdLine, i
         Assert(GetCursorPos(&CursorPos));
         Assert(ScreenToClient(Window, &CursorPos));
 
-        v2f Cursor;
-        Cursor[0] = (f32) (CursorPos.x);
-        Cursor[1] = (f32) (CursorPos.y);
+        GfxCur[0] = (f32) (CursorPos.x);
+        GfxCur[1] = (f32) (CursorPos.y);
+
+        GfxBtn = GetKeyState(VK_LBUTTON) >> 15;
 
         glClearColor(0.0f, 0, 0, 0);
         glClear(GL_COLOR_BUFFER_BIT);
@@ -143,22 +162,37 @@ int APIENTRY WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, PSTR CmdLine, i
             gfxText("Hello world!");
             gfxText("Welcome to Windows.");
 
-            // glColor3f(1.0f, 1.0f, 1.0f);
-            // v2f ImgPos = {100.f, 200.f};
-            // gfxImageAt(ImgPos, &Img);
+            if(gfxButton("Push me"))
+            {
+                gfxDebugPrint("Push me\n");
+            }
 
-            gfxButton("Push me");
-            gfxButton("I am not kidding");
-            gfxButton("C'mon man!");
+            if(gfxButton("I am not kidding"))
+            {
+                gfxDebugPrint("I am not kidding\n");
+            }
+
+            if(gfxButton("C'mon man!"))
+            {
+                gfxDebugPrint("C'mon man!\n");
+            }
+
+            static int RadioValue = 0;
+            gfxRadioButton("Radio button 0", &RadioValue, 0);
+            gfxRadioButton("Radio button 1", &RadioValue, 1);
+            gfxRadioButton("Radio button 2", &RadioValue, 2);
 
             glColor3f(1.0f, 0.0f, 0.0f);
-            gfxTextAt(Cursor, "I am moving");
-
-            gfxPolygon(200, 200, 50, 16);
+            gfxTextAt(GfxCur, "I am moving");
         }
         gfxEnd();
 
         Assert(SwapBuffers(DC));
+
+        if(!GfxBtn)
+        {
+            GfxHot = 0;
+        }
     }
 
     return 0;

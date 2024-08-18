@@ -2,6 +2,9 @@
 #include <stddef.h>
 #include <stdio.h>
 #include <stdarg.h>
+#include <math.h>
+
+#define PI_F32   3.14159265358979323846264338327950288f
 
 #ifndef GL_BGR
 #define GL_BGR 0x80E0
@@ -729,9 +732,12 @@ static void gfxOrtho(f32* M, f32 Left, f32 Right, f32 Bottom, f32 Top, f32 Near,
     M[15] = 1.0f;
 }
 
-v2f GfxPos = {0.0f, 0.0f};
-gfx_fnt GfxFnt;
-f32 GfxSep = 5.f;
+static gfx_fnt GfxFnt;
+static f32 GfxSep = 5.f;
+static v2f GfxPos = {0.0f, 0.0f};
+static v2f GfxCur = {0.0f, 0.0f};
+static b32 GfxBtn = 0;
+static const void* GfxHot = 0;
 
 static void gfxTextAt(v2f Pos, const char* String)
 {
@@ -793,10 +799,6 @@ static void gfxImageAt(v2f Pos, gfx_img* Img)
     glBindTexture(GL_TEXTURE_2D, 0);
 }
 
-#define PI_F32   3.14159265358979323846264338327950288f
-
-#include <math.h>
-
 void gfxPolygon(f32 CX, f32 CY, f32 R, u32 N)
 {
     glBegin(GL_POLYGON);
@@ -816,28 +818,70 @@ static void gfxColorRGB8(u8 R, u8 G, u8 B)
     glColor3f(R / 255.F, G / 255.F, B / 255.F);
 }
 
-static void gfxButton(const char* Text)
+static b32 gfxPointInRect(v2f Pt, v2f TL, v2f BR)
 {
-    // gfxColorRGB8(66, 150, 250);
+    if(Pt[0] >= TL[0] && Pt[0] <= BR[0] &&
+       Pt[1] >= TL[1] && Pt[1] <= BR[1])
+    {
+        return 1;
+    }
+    else
+    {
+        return 0;
+    }
+}
 
-    gfxColorRGB8(44, 74, 114);
+static b32 gfxButton(const char* Text)
+{
+    b32 Result = 0;
 
     usz Len = strlen(Text);
 
+    v2f TL, BR;
+    TL[0] = GfxPos[0];
+    TL[1] = GfxPos[1];
+    BR[0] = GfxPos[0] + (Len + 1) * GfxFnt.Cols;
+    BR[1] = GfxPos[1] + GfxFnt.Rows;
+
+    if(gfxPointInRect(GfxCur, TL, BR))
+    {
+        if(GfxBtn)
+        {
+            if(GfxHot == 0 || GfxHot == Text)
+            {
+                gfxColorRGB8(15, 135, 250);
+
+                GfxHot = Text;
+            }
+            else
+            {
+                gfxColorRGB8(44, 74, 114);
+            }
+        }
+        else
+        {
+            if(GfxHot == Text)
+            {
+                Result = 1;
+            }
+
+            gfxColorRGB8(66, 150, 250);
+        }
+    }
+    else
+    {
+        gfxColorRGB8(44, 74, 114);
+    }
+
     glBegin(GL_TRIANGLES);
 
-    f32 X1 = GfxPos[0];
-    f32 Y1 = GfxPos[1];
-    f32 X2 = GfxPos[0] + (Len + 1) * GfxFnt.Cols;
-    f32 Y2 = GfxPos[1] + GfxFnt.Rows;
+    glVertex2f(TL[0], TL[1]);
+    glVertex2f(BR[0], TL[1]);
+    glVertex2f(TL[0], BR[1]);
 
-    glVertex2f(X1, Y1);
-    glVertex2f(X2, Y1);
-    glVertex2f(X1, Y2);
-
-    glVertex2f(X2, Y2);
-    glVertex2f(X2, Y1);
-    glVertex2f(X1, Y2);
+    glVertex2f(BR[0], BR[1]);
+    glVertex2f(BR[0], TL[1]);
+    glVertex2f(TL[0], BR[1]);
 
     glEnd();
 
@@ -847,6 +891,79 @@ static void gfxButton(const char* Text)
     gfxText(Text);
 
     GfxPos[0] -= GfxFnt.Cols/2;
+
+    return Result;
+}
+
+static b32 gfxRadioButton(const char* Text, int* Dest, int Numb)
+{
+    b32 Result = 0;
+
+    usz Len = strlen(Text);
+
+    v2f TL, BR;
+    TL[0] = GfxPos[0];
+    TL[1] = GfxPos[1];
+    BR[0] = GfxPos[0] + (Len + 1) * GfxFnt.Cols;
+    BR[1] = GfxPos[1] + GfxFnt.Rows;
+
+    f32 R = GfxFnt.Rows * 0.5f;
+
+    if(gfxPointInRect(GfxCur, TL, BR))
+    {
+        if(GfxBtn)
+        {
+            if(GfxHot == 0 || GfxHot == Text)
+            {
+                gfxColorRGB8(15, 135, 250);
+
+                GfxHot = Text;
+            }
+            else
+            {
+                gfxColorRGB8(33, 51, 77);
+            }
+        }
+        else
+        {
+            if(GfxHot == Text)
+            {
+                *Dest = Numb;
+
+                Result = 1;
+            }
+
+            gfxColorRGB8(40, 74, 114);
+        }
+    }
+    else
+    {
+        gfxColorRGB8(33, 51, 77);
+    }
+
+    gfxPolygon(GfxPos[0] + R, GfxPos[1] + R, R, 10);
+
+    if(*Dest == Numb)
+    {
+        gfxColorRGB8(66, 150, 250);
+
+        gfxPolygon(GfxPos[0] + R, GfxPos[1] + R, R*0.6f, 10);
+    }
+
+    GfxPos[0] += GfxFnt.Rows + GfxFnt.Cols/2;
+
+    glColor3f(1.0f, 1.0f, 1.0f);
+
+    gfxText(Text);
+
+    GfxPos[0] -= GfxFnt.Rows + GfxFnt.Cols/2;
+
+    return Result;
+}
+
+static void gfxCheckBox(const char* Text, b32* Value)
+{
+
 }
 
 static void gfxBegin(void)
