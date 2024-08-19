@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdarg.h>
 #include <math.h>
+#include <string.h>
 
 #define PI_F32   3.14159265358979323846264338327950288f
 
@@ -737,6 +738,8 @@ static f32 GfxSep = 5.f;
 static v2f GfxPos = {0.0f, 0.0f};
 static v2f GfxCur = {0.0f, 0.0f};
 static b32 GfxBtn = 0;
+static f32 GfxCols;
+static f32 GfxRows;
 static const void* GfxHot = 0;
 
 static void gfxTextAt(v2f Pos, const char* String)
@@ -749,7 +752,7 @@ static void gfxTextAt(v2f Pos, const char* String)
     glBegin(GL_TRIANGLES);
 
     char C;
-    while(C = *(String++))
+    while((C = *(String++)) != 0)
     {
         f32 rat = (C + 0) / 256.0f;
         f32 bat = (C + 1) / 256.0f;
@@ -992,5 +995,6 @@ static b32 gfxInit(void)
     Assert(gfxLoadBdf(&GfxFnt, "spleen-32x64.bdf"));
     GfxFnt.Cols/=2;
     GfxFnt.Rows/=2;
+
     return Result;
 }

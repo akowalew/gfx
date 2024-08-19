@@ -1,6 +1,5 @@
 #include "gfx.c"
-
-u32 num = 'a';
+#include "text.c"
 
 static LRESULT WindowProc(HWND Window, UINT Msg, WPARAM WParam, LPARAM LParam)
 {
@@ -15,16 +14,6 @@ static LRESULT WindowProc(HWND Window, UINT Msg, WPARAM WParam, LPARAM LParam)
                 case VK_ESCAPE:
                 {
                     PostQuitMessage(0);
-                } break;
-
-                case VK_LEFT:
-                {
-                    num = (num - 1) & 255;
-                } break;
-
-                case VK_RIGHT:
-                {
-                    num = (num + 1) & 255;
                 } break;
             }
         } break;
@@ -121,78 +110,20 @@ int APIENTRY WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, PSTR CmdLine, i
 
         RECT ClientRect;
         Assert(GetClientRect(Window, &ClientRect));
-        f32 Cols = (f32)(ClientRect.right - ClientRect.left);
-        f32 Rows = (f32)(ClientRect.bottom - ClientRect.top);
-        glViewport(0, 0, (i32)Cols, (i32)Rows);
+        GfxCols = (f32)(ClientRect.right - ClientRect.left);
+        GfxRows = (f32)(ClientRect.bottom - ClientRect.top);
 
         POINT CursorPos;
         Assert(GetCursorPos(&CursorPos));
         Assert(ScreenToClient(Window, &CursorPos));
-
         GfxCur[0] = (f32) (CursorPos.x);
         GfxCur[1] = (f32) (CursorPos.y);
 
         GfxBtn = GetKeyState(VK_LBUTTON) >> 15;
 
-        glClearColor(0.0f, 0, 0, 0);
-        glClear(GL_COLOR_BUFFER_BIT);
-        glClear(GL_DEPTH_BUFFER_BIT);
-
-        m4f ProjectionMatrix;
-        gfxIdentity(ProjectionMatrix);
-        gfxOrtho(ProjectionMatrix, 0, Cols, 0, Rows, -1.0f, 1.0f);
-        glMatrixMode(GL_PROJECTION);
-        glLoadMatrixf(ProjectionMatrix);
-
-        m4f ModelViewMatrix;
-        gfxIdentity(ModelViewMatrix);
-        gfxTranslateY(ModelViewMatrix, Rows);
-        gfxScaleY(ModelViewMatrix, -1.0f);
-        glMatrixMode(GL_MODELVIEW);
-        glLoadMatrixf(ModelViewMatrix);
-
-        m4f TextureMatrix;
-        gfxIdentity(TextureMatrix);
-        glMatrixMode(GL_TEXTURE);
-        glLoadMatrixf(TextureMatrix);
-
-        gfxBegin();
-        {
-            glColor3f(1.0f, 1.0f, 1.0f);
-            gfxText("Hello world!");
-            gfxText("Welcome to Windows.");
-
-            if(gfxButton("Push me"))
-            {
-                gfxDebugPrint("Push me\n");
-            }
-
-            if(gfxButton("I am not kidding"))
-            {
-                gfxDebugPrint("I am not kidding\n");
-            }
-
-            if(gfxButton("C'mon man!"))
-            {
-                gfxDebugPrint("C'mon man!\n");
-            }
-
-            static int RadioValue = 0;
-            gfxRadioButton("Radio button 0", &RadioValue, 0);
-            gfxRadioButton("Radio button 1", &RadioValue, 1);
-            gfxRadioButton("Radio button 2", &RadioValue, 2);
-
-            glColor3f(1.0f, 0.0f, 0.0f);
-            gfxTextAt(GfxCur, "I am moving");
-        }
-        gfxEnd();
+        AppUpdate();
 
         Assert(SwapBuffers(DC));
-
-        if(!GfxBtn)
-        {
-            GfxHot = 0;
-        }
     }
 
     return 0;
