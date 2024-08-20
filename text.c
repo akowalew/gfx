@@ -27,8 +27,8 @@ static void AppUpdate(void)
     gfxBegin();
     {
         glColor3f(1.0f, 1.0f, 1.0f);
-        gfxText("Hello world!");
-        gfxText("Welcome to Windows.");
+        gfxString("Hello world!");
+        gfxString("Welcome to Windows.");
 
         if(gfxButton("Push me"))
         {
@@ -50,8 +50,18 @@ static void AppUpdate(void)
         gfxRadioButton("Radio button 1", &RadioValue, 1);
         gfxRadioButton("Radio button 2", &RadioValue, 2);
 
+        static b32 CheckBox1 = 0;
+        gfxCheckBox("Check box 1", &CheckBox1);
+        static b32 CheckBox2 = 0;
+        gfxCheckBox("Check box 2", &CheckBox2);
+
+        static f32 Slider1 = 50.0f;
+        gfxSliderFloat(0.0f, 100.f, &Slider1, "%.1lf", Slider1);
+
+        GfxPos[0] = GfxCur[0];
+        GfxPos[1] = GfxCur[1];
         glColor3f(1.0f, 0.0f, 0.0f);
-        gfxTextAt(GfxCur, "I am moving");
+        gfxString("I am moving");
     }
     gfxEnd();
 

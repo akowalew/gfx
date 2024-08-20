@@ -742,18 +742,19 @@ static f32 GfxCols;
 static f32 GfxRows;
 static const void* GfxHot = 0;
 
-static void gfxTextAt(v2f Pos, const char* String)
+static void gfxText(const char* Text, usz Size)
 {
     glBindTexture(GL_TEXTURE_2D, GfxFnt.Texture);
 
-    f32 X = Pos[0];
-    f32 Y = Pos[1];
+    f32 X = GfxPos[0];
+    f32 Y = GfxPos[1];
 
     glBegin(GL_TRIANGLES);
 
-    char C;
-    while((C = *(String++)) != 0)
+    for(usz Idx = 0; Idx < Size; Idx++)
     {
+        char C = Text[Idx];
+
         f32 rat = (C + 0) / 256.0f;
         f32 bat = (C + 1) / 256.0f;
 
@@ -771,13 +772,14 @@ static void gfxTextAt(v2f Pos, const char* String)
     glEnd();
 
     glBindTexture(GL_TEXTURE_2D, 0);
-}
-
-static void gfxText(const char* String)
-{
-    gfxTextAt(GfxPos, String);
 
     GfxPos[1] += GfxFnt.Rows + GfxSep;
+}
+
+static void gfxString(const char* String)
+{
+    usz Length = strlen(String);
+    gfxText(String, Length);
 }
 
 static void gfxImageAt(v2f Pos, gfx_img* Img)
@@ -834,6 +836,64 @@ static b32 gfxPointInRect(v2f Pt, v2f TL, v2f BR)
     }
 }
 
+static void gfxRect(f32 X1, f32 Y1, f32 X2, f32 Y2)
+{
+    glBegin(GL_TRIANGLES);
+
+    glVertex2f(X1, Y1);
+    glVertex2f(X2, Y1);
+    glVertex2f(X1, Y2);
+
+    glVertex2f(X2, Y2);
+    glVertex2f(X2, Y1);
+    glVertex2f(X1, Y2);
+
+    glEnd();
+}
+
+typedef enum
+{
+    GFX_ITEM_IDLE,
+    GFX_ITEM_HOVER,
+    GFX_ITEM_ACTIVE,
+    GFX_ITEM_CLICK,
+} gfx_its;
+
+static int gfxTestItem(void* Item, v2f TL, v2f BR)
+{
+    if(gfxPointInRect(GfxCur, TL, BR))
+    {
+        if(GfxBtn)
+        {
+            if(GfxHot == 0 || GfxHot == Item)
+            {
+                GfxHot = Item;
+
+                return GFX_ITEM_ACTIVE;
+            }
+            else
+            {
+                return GFX_ITEM_IDLE;
+            }
+        }
+        else
+        {
+            if(GfxHot == Item)
+            {
+                return GFX_ITEM_CLICK;
+            }
+            else
+            {
+                return GFX_ITEM_HOVER;
+            }
+        }
+    }
+    else
+    {
+        return GFX_ITEM_IDLE;
+    }
+}
+
 static b32 gfxButton(const char* Text)
 {
     b32 Result = 0;
@@ -876,29 +936,19 @@ static b32 gfxButton(const char* Text)
         gfxColorRGB8(44, 74, 114);
     }
 
-    glBegin(GL_TRIANGLES);
-
-    glVertex2f(TL[0], TL[1]);
-    glVertex2f(BR[0], TL[1]);
-    glVertex2f(TL[0], BR[1]);
-
-    glVertex2f(BR[0], BR[1]);
-    glVertex2f(BR[0], TL[1]);
-    glVertex2f(TL[0], BR[1]);
-
-    glEnd();
+    gfxRect(TL[0], TL[1], BR[0], BR[1]);
 
     GfxPos[0] += GfxFnt.Cols/2;
 
     glColor3f(1.0f, 1.0f, 1.0f);
-    gfxText(Text);
+    gfxString(Text);
 
     GfxPos[0] -= GfxFnt.Cols/2;
 
     return Result;
 }
 
-static b32 gfxRadioButton(const char* Text, int* Dest, int Numb)
+static b32 gfxRadioButton(const char* Text, int* Value, int Target)
 {
     b32 Result = 0;
 
@@ -907,7 +957,7 @@ static b32 gfxRadioButton(const char* Text, int* Dest, int Numb)
     v2f TL, BR;
     TL[0] = GfxPos[0];
     TL[1] = GfxPos[1];
-    BR[0] = GfxPos[0] + (Len + 1) * GfxFnt.Cols;
+    BR[0] = GfxPos[0] + GfxFnt.Rows + (Len + 0.5f) * GfxFnt.Cols;
     BR[1] = GfxPos[1] + GfxFnt.Rows;
 
     f32 R = GfxFnt.Rows * 0.5f;
@@ -931,7 +981,7 @@ static b32 gfxRadioButton(const char* Text, int* Dest, int Numb)
         {
             if(GfxHot == Text)
             {
-                *Dest = Numb;
+                *Value = Target;
 
                 Result = 1;
             }
@@ -946,7 +996,7 @@ static b32 gfxRadioButton(const char* Text, int* Dest, int Numb)
 
     gfxPolygon(GfxPos[0] + R, GfxPos[1] + R, R, 10);
 
-    if(*Dest == Numb)
+    if(*Value == Target)
     {
         gfxColorRGB8(66, 150, 250);
 
@@ -957,16 +1007,127 @@ static b32 gfxRadioButton(const char* Text, int* Dest, int Numb)
 
     glColor3f(1.0f, 1.0f, 1.0f);
 
-    gfxText(Text);
+    gfxString(Text);
 
     GfxPos[0] -= GfxFnt.Rows + GfxFnt.Cols/2;
 
     return Result;
 }
 
-static void gfxCheckBox(const char* Text, b32* Value)
+static b32 gfxCheckBox(const char* Text, b32* Value)
 {
+    b32 Result = 0;
 
+    usz Len = strlen(Text);
+
+    v2f TL, BR, MR;
+
+    TL[0] = GfxPos[0];
+    TL[1] = GfxPos[1];
+
+    MR[0] = GfxPos[0] + GfxFnt.Rows;
+    MR[1] = GfxPos[1] + GfxFnt.Rows;
+
+    BR[0] = MR[0] + (Len + 0.5f) * GfxFnt.Cols;
+    BR[1] = MR[1];
+
+    f32 R = GfxFnt.Rows * 0.5f;
+
+    if(gfxPointInRect(GfxCur, TL, BR))
+    {
+        if(GfxBtn)
+        {
+            if(GfxHot == 0 || GfxHot == Text)
+            {
+                gfxColorRGB8(51, 107, 174);
+
+                GfxHot = Text;
+            }
+            else
+            {
+                gfxColorRGB8(33, 51, 77);
+            }
+        }
+        else
+        {
+            if(GfxHot == Text)
+            {
+                *Value = !*Value;
+
+                Result = 1;
+            }
+
+            gfxColorRGB8(40, 74, 114);
+        }
+    }
+    else
+    {
+        gfxColorRGB8(33, 51, 77);
+    }
+
+    gfxRect(TL[0], TL[1], MR[0], MR[1]);
+
+    if(*Value)
+    {
+        gfxColorRGB8(66, 150, 250);
+
+        gfxRect(TL[0] + 0.20f * GfxFnt.Rows, TL[1] + 0.20f * GfxFnt.Rows,
+                TL[0] + 0.80f * GfxFnt.Rows, TL[1] + 0.80f * GfxFnt.Rows);
+    }
+
+    GfxPos[0] += GfxFnt.Rows + GfxFnt.Cols/2;
+
+    glColor3f(1.0f, 1.0f, 1.0f);
+
+    gfxString(Text);
+
+    GfxPos[0] -= GfxFnt.Rows + GfxFnt.Cols/2;
+
+    return Result;
+}
+
+static usz gfxFormatV(char* Buffer, usz Length, const char* Format, va_list Args)
+{
+    int Count = vsnprintf(Buffer, Length, Format, Args);
+    if(Count >= Length)
+    {
+        Count = (int)Length-1;
+    }
+
+    Buffer[Count] = 0;
+    return (usz)Count;
+}
+
+static b32 gfxSliderFloat(f32 Left, f32 Right, f32* Value, const char* Text, ...)
+{
+    b32 Result = 0;
+
+    v2f TL, BR;
+
+    TL[0] = GfxPos[0];
+    TL[1] = GfxPos[1];
+
+    BR[0] = TL[0] + 300;
+    BR[1] = TL[1] + GfxFnt.Rows;
+
+    gfxColorRGB8(64, 68, 71);
+    gfxRect(TL[0], TL[1], BR[0], BR[1]);
+
+    va_list Args;
+    char Buffer[128];
+    va_start(Args, Text);
+    usz Length = gfxFormatV(Buffer, sizeof(Buffer), Text, Args);
+    va_end(Args);
+
+    GfxPos[0] = (BR[0] + TL[0] - Length * GfxFnt.Cols) * 0.5f;
+    glColor3f(1.0f, 1.0f, 1.0f);
+    gfxText(Buffer, Length);
+    GfxPos[0] = TL[0];
+
+    glColor4f(0.5f, 0.5f, 0.5f, 0.5f);
+    gfxRect(TL[0]+100, TL[1], TL[0]+125, BR[1]);
+
+    return Result;
 }
 
 static void gfxBegin(void)
