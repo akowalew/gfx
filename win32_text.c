@@ -120,6 +120,10 @@ int APIENTRY WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, PSTR CmdLine, i
         GfxCur[1] = (f32) (CursorPos.y);
 
         GfxBtn = GetKeyState(VK_LBUTTON) >> 15;
+        GfxKeyLeft = GetKeyState(VK_LEFT) >> 15;
+        GfxKeyRight = GetKeyState(VK_RIGHT) >> 15;
+        GfxKeyUp = GetKeyState(VK_UP) >> 15;
+        GfxKeyDown = GetKeyState(VK_DOWN) >> 15;
 
         AppUpdate();
 

@@ -45,7 +45,7 @@ static void AppUpdate(void)
             gfxDebugPrint("C'mon man!\n");
         }
 
-        static int RadioValue = 0;
+        static i32 RadioValue = 0;
         gfxRadioButton("Radio button 0", &RadioValue, 0);
         gfxRadioButton("Radio button 1", &RadioValue, 1);
         gfxRadioButton("Radio button 2", &RadioValue, 2);
@@ -55,8 +55,11 @@ static void AppUpdate(void)
         static b32 CheckBox2 = 0;
         gfxCheckBox("Check box 2", &CheckBox2);
 
-        static f32 Slider1 = 50.0f;
-        gfxSliderFloat(0.0f, 100.f, &Slider1, "%.1lf", Slider1);
+        static f32 Slider1 = 125.0f;
+        gfxSliderFloat(100.0f, 200.f, &Slider1, "%.1lf", Slider1);
+
+        if(GfxKeyLeft) Slider1 = Max(Slider1 - 1.f, 100.f);
+        if(GfxKeyRight) Slider1 = Min(Slider1 + 1.f, 200.f);
 
         GfxPos[0] = GfxCur[0];
         GfxPos[1] = GfxCur[1];

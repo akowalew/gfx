@@ -32,6 +32,7 @@ typedef size_t usz;
 #define Assert(x) if(!(x)) { *(int*)(0) = 0; }
 #define ArrLen(x) sizeof(x)/sizeof(x[0])
 #define Min(x, y) ((x) < (y) ? (x) : (y))
+#define Max(x, y) ((x) > (y) ? (x) : (y))
 
 typedef struct
 {
@@ -741,6 +742,10 @@ static b32 GfxBtn = 0;
 static f32 GfxCols;
 static f32 GfxRows;
 static const void* GfxHot = 0;
+static u8 GfxKeyLeft;
+static u8 GfxKeyRight;
+static u8 GfxKeyUp;
+static u8 GfxKeyDown;
 
 static void gfxText(const char* Text, usz Size)
 {
@@ -856,10 +861,10 @@ typedef enum
     GFX_ITEM_IDLE,
     GFX_ITEM_HOVER,
     GFX_ITEM_ACTIVE,
-    GFX_ITEM_CLICK,
+    GFX_ITEM_RELEASE,
 } gfx_its;
 
-static int gfxTestItem(void* Item, v2f TL, v2f BR)
+static int gfxProcessItem(const void* Item, v2f TL, v2f BR)
 {
     if(gfxPointInRect(GfxCur, TL, BR))
     {
@@ -880,7 +885,7 @@ static int gfxTestItem(void* Item, v2f TL, v2f BR)
         {
             if(GfxHot == Item)
             {
-                return GFX_ITEM_CLICK;
+                return GFX_ITEM_RELEASE;
             }
             else
             {
@@ -906,34 +911,12 @@ static b32 gfxButton(const char* Text)
     BR[0] = GfxPos[0] + (Len + 1) * GfxFnt.Cols;
     BR[1] = GfxPos[1] + GfxFnt.Rows;
 
-    if(gfxPointInRect(GfxCur, TL, BR))
+    switch(gfxProcessItem(Text, TL, BR))
     {
-        if(GfxBtn)
-        {
-            if(GfxHot == 0 || GfxHot == Text)
-            {
-                gfxColorRGB8(15, 135, 250);
-
-                GfxHot = Text;
-            }
-            else
-            {
-                gfxColorRGB8(44, 74, 114);
-            }
-        }
-        else
-        {
-            if(GfxHot == Text)
-            {
-                Result = 1;
-            }
-
-            gfxColorRGB8(66, 150, 250);
-        }
-    }
-    else
-    {
-        gfxColorRGB8(44, 74, 114);
+        case GFX_ITEM_IDLE:   gfxColorRGB8(44, 74, 114);  break;
+        case GFX_ITEM_ACTIVE: gfxColorRGB8(15, 135, 250); break;
+        case GFX_ITEM_RELEASE:  Result = 1; // fallthrough
+        case GFX_ITEM_HOVER:  gfxColorRGB8(66, 150, 250); break;
     }
 
     gfxRect(TL[0], TL[1], BR[0], BR[1]);
@@ -948,7 +931,7 @@ static b32 gfxButton(const char* Text)
     return Result;
 }
 
-static b32 gfxRadioButton(const char* Text, int* Value, int Target)
+static b32 gfxRadioButton(const char* Text, i32* Value, i32 Target)
 {
     b32 Result = 0;
 
@@ -962,36 +945,12 @@ static b32 gfxRadioButton(const char* Text, int* Value, int Target)
 
     f32 R = GfxFnt.Rows * 0.5f;
 
-    if(gfxPointInRect(GfxCur, TL, BR))
+    switch(gfxProcessItem(Text, TL, BR))
     {
-        if(GfxBtn)
-        {
-            if(GfxHot == 0 || GfxHot == Text)
-            {
-                gfxColorRGB8(15, 135, 250);
-
-                GfxHot = Text;
-            }
-            else
-            {
-                gfxColorRGB8(33, 51, 77);
-            }
-        }
-        else
-        {
-            if(GfxHot == Text)
-            {
-                *Value = Target;
-
-                Result = 1;
-            }
-
-            gfxColorRGB8(40, 74, 114);
-        }
-    }
-    else
-    {
-        gfxColorRGB8(33, 51, 77);
+        case GFX_ITEM_IDLE:   gfxColorRGB8(33, 51, 77);  break;
+        case GFX_ITEM_ACTIVE: gfxColorRGB8(51, 107, 174); break;
+        case GFX_ITEM_RELEASE:  *Value = Target; Result = 1; // fallthrough
+        case GFX_ITEM_HOVER:  gfxColorRGB8(40, 74, 114); break;
     }
 
     gfxPolygon(GfxPos[0] + R, GfxPos[1] + R, R, 10);
@@ -1014,14 +973,15 @@ static b32 gfxRadioButton(const char* Text, int* Value, int Target)
     return Result;
 }
 
-static void gfxCheckmark(float X, float Y, float M)
+static void gfxCheckmark(f32 X, f32 Y, f32 M)
 {
-    glBegin(GL_TRIANGLES);
+    // TODO: SIMD
+    f32 Ax = X + 0.15f * M, Ay = Y + 0.40f * M;
+    f32 Bx = X + 0.45f * M, By = Y + 0.80f * M;
+    f32 Cx = X + 0.80f * M, Cy = Y + 0.20f * M;
+    f32 Dx = X + 0.40f * M, Dy = Y + 0.55f * M;
 
-    float Ax = X + 0.15f * M, Ay = Y + 0.40f * M;
-    float Bx = X + 0.45f * M, By = Y + 0.80f * M;
-    float Cx = X + 0.80f * M, Cy = Y + 0.20f * M;
-    float Dx = X + 0.40f * M, Dy = Y + 0.55f * M;
+    glBegin(GL_TRIANGLES);
 
     glVertex2f(Ax, Ay);
     glVertex2f(Bx, By);
@@ -1051,38 +1011,12 @@ static b32 gfxCheckBox(const char* Text, b32* Value)
     BR[0] = MR[0] + (Len + 0.5f) * GfxFnt.Cols;
     BR[1] = MR[1];
 
-    f32 R = GfxFnt.Rows * 0.5f;
-
-    if(gfxPointInRect(GfxCur, TL, BR))
+    switch(gfxProcessItem(Text, TL, BR))
     {
-        if(GfxBtn)
-        {
-            if(GfxHot == 0 || GfxHot == Text)
-            {
-                gfxColorRGB8(51, 107, 174);
-
-                GfxHot = Text;
-            }
-            else
-            {
-                gfxColorRGB8(33, 51, 77);
-            }
-        }
-        else
-        {
-            if(GfxHot == Text)
-            {
-                *Value = !*Value;
-
-                Result = 1;
-            }
-
-            gfxColorRGB8(40, 74, 114);
-        }
-    }
-    else
-    {
-        gfxColorRGB8(33, 51, 77);
+        case GFX_ITEM_IDLE:   gfxColorRGB8(33, 51, 77);  break;
+        case GFX_ITEM_ACTIVE: gfxColorRGB8(51, 107, 174); break;
+        case GFX_ITEM_RELEASE:  *Value = !*Value; Result = 1; // fallthrough
+        case GFX_ITEM_HOVER:  gfxColorRGB8(40, 74, 114); break;
     }
 
     gfxRect(TL[0], TL[1], MR[0], MR[1]);
@@ -1095,7 +1029,7 @@ static b32 gfxCheckBox(const char* Text, b32* Value)
         gfxRect(TL[0] + 0.20f * GfxFnt.Rows, TL[1] + 0.20f * GfxFnt.Rows,
                 TL[0] + 0.80f * GfxFnt.Rows, TL[1] + 0.80f * GfxFnt.Rows);
 #else
-        gfxCheckmark(TL[0], TL[1], GfxFnt.Rows);
+        gfxCheckmark(TL[0], TL[1], (f32)GfxFnt.Rows);
 #endif
     }
 
@@ -1122,20 +1056,20 @@ static usz gfxFormatV(char* Buffer, usz Length, const char* Format, va_list Args
     return (usz)Count;
 }
 
-static b32 gfxSliderFloat(f32 Left, f32 Right, f32* Value, const char* Text, ...)
+#define Clamp(A, B, V) ((V) > (A) ? ((V) < (B) ? (V) : (B)) : (A))
+
+static b32 gfxSliderFloat(f32 A, f32 B, f32* V, const char* Text, ...)
 {
     b32 Result = 0;
 
-    v2f TL, BR;
-
-    TL[0] = GfxPos[0];
-    TL[1] = GfxPos[1];
-
-    BR[0] = TL[0] + 300;
-    BR[1] = TL[1] + GfxFnt.Rows;
+    v2f STL, SBR;
+    STL[0] = GfxPos[0];
+    STL[1] = GfxPos[1];
+    SBR[0] = STL[0] + 300;
+    SBR[1] = STL[1] + GfxFnt.Rows;
 
     gfxColorRGB8(64, 68, 71);
-    gfxRect(TL[0], TL[1], BR[0], BR[1]);
+    gfxRect(STL[0], STL[1], SBR[0], SBR[1]);
 
     va_list Args;
     char Buffer[128];
@@ -1143,13 +1077,40 @@ static b32 gfxSliderFloat(f32 Left, f32 Right, f32* Value, const char* Text, ...
     usz Length = gfxFormatV(Buffer, sizeof(Buffer), Text, Args);
     va_end(Args);
 
-    GfxPos[0] = (BR[0] + TL[0] - Length * GfxFnt.Cols) * 0.5f;
+    GfxPos[0] = (SBR[0] + STL[0] - Length * GfxFnt.Cols) * 0.5f;
     glColor3f(1.0f, 1.0f, 1.0f);
     gfxText(Buffer, Length);
-    GfxPos[0] = TL[0];
+    GfxPos[0] = STL[0];
 
-    glColor4f(0.5f, 0.5f, 0.5f, 0.5f);
-    gfxRect(TL[0]+100, TL[1], TL[0]+125, BR[1]);
+    f32 Width = 25.0f;
+    f32 Offset = (SBR[0] - STL[0] - Width) * (*V - A) / (B - A);
+
+    v2f BTL, BBR;
+    BTL[0] = STL[0] + Offset;
+    BTL[1] = STL[1];
+    BBR[0] = BTL[0] + Width;
+    BBR[1] = SBR[1];
+
+    switch(gfxProcessItem(V, BTL, BBR))
+    {
+        case GFX_ITEM_IDLE:    glColor4f(0.5f, 0.5f, 0.5f, 0.5f); break;
+        case GFX_ITEM_ACTIVE:  glColor4f(0.8f, 0.8f, 0.8f, 0.8f); break;
+        case GFX_ITEM_RELEASE: // fallthrough
+        case GFX_ITEM_HOVER:   glColor4f(0.7f, 0.7f, 0.7f, 0.7f); break;
+    }
+
+    if(GfxHot == V)
+    {
+        glColor4f(0.8f, 0.8f, 0.8f, 0.8f);
+
+        f32 Value = A + (GfxCur[0] - STL[0]) * (B - A) / (SBR[0] - STL[0]);
+
+        *V = Clamp(A, B, Value);
+
+        Result = 1;
+    }
+
+    gfxRect(BTL[0], BTL[1], BBR[0], BBR[1]);
 
     return Result;
 }
