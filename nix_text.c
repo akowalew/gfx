@@ -12,7 +12,16 @@ int main(int Argc, char** Argv)
     }
 
     Window X11Root = DefaultRootWindow(X11Display);
-    GLint GlAttributes[] = { GLX_RGBA, GLX_DEPTH_SIZE, 24, GLX_DOUBLEBUFFER, None };
+    GLint GlAttributes[] =
+    {
+        GLX_RGBA,
+        GLX_DEPTH_SIZE, 24,
+        GLX_DOUBLEBUFFER,
+        GLX_SAMPLE_BUFFERS, 1,
+        GLX_SAMPLES, 4,
+        None
+    };
+
     XVisualInfo* X11VisualInfo = glXChooseVisual(X11Display, 0, GlAttributes);
     if(!X11VisualInfo)
     {
@@ -43,6 +52,8 @@ int main(int Argc, char** Argv)
     XSetWMProtocols(X11Display, X11Window, &WM_DELETE_WINDOW, 1);
 
     Assert(gfxInit());
+
+    glEnable(GL_MULTISAMPLE);
 
     u32 ShouldExit = 0;
     while(ShouldExit == 0)

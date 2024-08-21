@@ -50,7 +50,7 @@ static void AppUpdate(void)
         gfxRadioButton("Radio button 1", &RadioValue, 1);
         gfxRadioButton("Radio button 2", &RadioValue, 2);
 
-        static b32 CheckBox1 = 0;
+        static b32 CheckBox1 = 1;
         gfxCheckBox("Check box 1", &CheckBox1);
         static b32 CheckBox2 = 0;
         gfxCheckBox("Check box 2", &CheckBox2);

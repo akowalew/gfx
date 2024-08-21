@@ -1014,6 +1014,26 @@ static b32 gfxRadioButton(const char* Text, int* Value, int Target)
     return Result;
 }
 
+static void gfxCheckmark(float X, float Y, float M)
+{
+    glBegin(GL_TRIANGLES);
+
+    float Ax = X + 0.15f * M, Ay = Y + 0.40f * M;
+    float Bx = X + 0.45f * M, By = Y + 0.80f * M;
+    float Cx = X + 0.80f * M, Cy = Y + 0.20f * M;
+    float Dx = X + 0.40f * M, Dy = Y + 0.55f * M;
+
+    glVertex2f(Ax, Ay);
+    glVertex2f(Bx, By);
+    glVertex2f(Dx, Dy);
+
+    glVertex2f(Dx, Dy);
+    glVertex2f(Bx, By);
+    glVertex2f(Cx, Cy);
+
+    glEnd();
+}
+
 static b32 gfxCheckBox(const char* Text, b32* Value)
 {
     b32 Result = 0;
@@ -1071,8 +1091,12 @@ static b32 gfxCheckBox(const char* Text, b32* Value)
     {
         gfxColorRGB8(66, 150, 250);
 
+#if 0
         gfxRect(TL[0] + 0.20f * GfxFnt.Rows, TL[1] + 0.20f * GfxFnt.Rows,
                 TL[0] + 0.80f * GfxFnt.Rows, TL[1] + 0.80f * GfxFnt.Rows);
+#else
+        gfxCheckmark(TL[0], TL[1], GfxFnt.Rows);
+#endif
     }
 
     GfxPos[0] += GfxFnt.Rows + GfxFnt.Cols/2;
