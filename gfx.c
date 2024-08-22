@@ -33,6 +33,7 @@ typedef size_t usz;
 #define ArrLen(x) sizeof(x)/sizeof(x[0])
 #define Min(x, y) ((x) < (y) ? (x) : (y))
 #define Max(x, y) ((x) > (y) ? (x) : (y))
+#define Clamp(A, B, V) ((V) > (A) ? ((V) < (B) ? (V) : (B)) : (A))
 
 typedef struct
 {
@@ -742,10 +743,12 @@ static b32 GfxBtn = 0;
 static f32 GfxCols;
 static f32 GfxRows;
 static const void* GfxHot = 0;
+static const void* GfxPrevHot = 0;
 static u8 GfxKeyLeft;
 static u8 GfxKeyRight;
 static u8 GfxKeyUp;
 static u8 GfxKeyDown;
+static u8 GfxKeyShift;
 
 static void gfxText(const char* Text, usz Size)
 {
@@ -1046,7 +1049,13 @@ static b32 gfxCheckBox(const char* Text, b32* Value)
 
 static usz gfxFormatV(char* Buffer, usz Length, const char* Format, va_list Args)
 {
-    int Count = vsnprintf(Buffer, Length, Format, Args);
+    int Ret = vsnprintf(Buffer, Length, Format, Args);
+    if(Ret < 0)
+    {
+        Ret = 0;
+    }
+
+    usz Count = (usz) Ret;
     if(Count >= Length)
     {
         Count = (int)Length-1;
@@ -1056,9 +1065,19 @@ static usz gfxFormatV(char* Buffer, usz Length, const char* Format, va_list Args
     return (usz)Count;
 }
 
-#define Clamp(A, B, V) ((V) > (A) ? ((V) < (B) ? (V) : (B)) : (A))
+static usz gfxFormat(char* Buffer, usz Length, const char* Format, ...)
+{
+    usz Result;
 
-static b32 gfxSliderFloat(f32 A, f32 B, f32* V, const char* Text, ...)
+    va_list Args;
+    va_start(Args, Format);
+    Result = gfxFormatV(Buffer, Length, Format, Args);
+    va_end(Args);
+
+    return Result;
+}
+
+static b32 gfxSliderFloat(f32 A, f32 B, f32* V, const char* Text)
 {
     b32 Result = 0;
 
@@ -1068,14 +1087,34 @@ static b32 gfxSliderFloat(f32 A, f32 B, f32* V, const char* Text, ...)
     SBR[0] = STL[0] + 300;
     SBR[1] = STL[1] + GfxFnt.Rows;
 
+    if(GfxPrevHot == V)
+    {
+        printf("GfxKeyShift: %d\n", GfxKeyShift);
+        f32 Mult = GfxKeyShift ? 10.0f : 100.0f;
+        f32 Speed = (B - A) / Mult;
+
+        if(GfxKeyLeft) *V = Max(*V - Speed, A);
+        if(GfxKeyRight) *V = Min(*V + Speed, B);
+
+        Result = 1;
+    }
+
+    if(GfxHot == V)
+    {
+        glColor4f(0.8f, 0.8f, 0.8f, 0.8f);
+
+        f32 Value = A + (GfxCur[0] - STL[0]) * (B - A) / (SBR[0] - STL[0]);
+
+        *V = Clamp(A, B, Value);
+
+        Result = 1;
+    }
+
     gfxColorRGB8(64, 68, 71);
     gfxRect(STL[0], STL[1], SBR[0], SBR[1]);
 
-    va_list Args;
     char Buffer[128];
-    va_start(Args, Text);
-    usz Length = gfxFormatV(Buffer, sizeof(Buffer), Text, Args);
-    va_end(Args);
+    usz Length = gfxFormat(Buffer, sizeof(Buffer), Text, *V);
 
     GfxPos[0] = (SBR[0] + STL[0] - Length * GfxFnt.Cols) * 0.5f;
     glColor3f(1.0f, 1.0f, 1.0f);
@@ -1097,17 +1136,6 @@ static b32 gfxSliderFloat(f32 A, f32 B, f32* V, const char* Text, ...)
         case GFX_ITEM_ACTIVE:  glColor4f(0.8f, 0.8f, 0.8f, 0.8f); break;
         case GFX_ITEM_RELEASE: // fallthrough
         case GFX_ITEM_HOVER:   glColor4f(0.7f, 0.7f, 0.7f, 0.7f); break;
-    }
-
-    if(GfxHot == V)
-    {
-        glColor4f(0.8f, 0.8f, 0.8f, 0.8f);
-
-        f32 Value = A + (GfxCur[0] - STL[0]) * (B - A) / (SBR[0] - STL[0]);
-
-        *V = Clamp(A, B, Value);
-
-        Result = 1;
     }
 
     gfxRect(BTL[0], BTL[1], BBR[0], BBR[1]);

@@ -64,12 +64,38 @@ int main(int Argc, char** Argv)
             XNextEvent(X11Display, &X11Event);
             if(X11Event.type == KeyPress)
             {
+                XKeyEvent *X11KeyEvent = (XKeyEvent *)&X11Event;
+                if(X11KeyEvent->state & ShiftMask)
+                {
+                    GfxKeyShift = 1;
+                }
+
                 KeySym X11Key = XLookupKeysym(&X11Event.xkey, 0);
                 switch(X11Key)
                 {
                     case XK_Escape:
                     {
                         ShouldExit = 1;
+                    } break;
+
+                    case XK_Left:
+                    {
+                        GfxKeyLeft++;
+                    } break;
+
+                    case XK_Right:
+                    {
+                        GfxKeyRight++;
+                    } break;
+
+                    case XK_Up:
+                    {
+                        GfxKeyUp++;
+                    } break;
+
+                    case XK_Down:
+                    {
+                        GfxKeyDown++;
                     } break;
                 }
             }
@@ -98,6 +124,12 @@ int main(int Argc, char** Argv)
         GfxBtn = (BtnsMask & Button1Mask);
 
         AppUpdate();
+
+        GfxKeyLeft = 0;
+        GfxKeyRight = 0;
+        GfxKeyUp = 0;
+        GfxKeyDown = 0;
+        GfxKeyShift = 0;
 
         glXSwapBuffers(X11Display, X11Window);
     }

@@ -56,10 +56,7 @@ static void AppUpdate(void)
         gfxCheckBox("Check box 2", &CheckBox2);
 
         static f32 Slider1 = 125.0f;
-        gfxSliderFloat(100.0f, 200.f, &Slider1, "%.1lf", Slider1);
-
-        if(GfxKeyLeft) Slider1 = Max(Slider1 - 1.f, 100.f);
-        if(GfxKeyRight) Slider1 = Min(Slider1 + 1.f, 200.f);
+        gfxSliderFloat(100.0f, 200.f, &Slider1, "%.1lf");
 
         GfxPos[0] = GfxCur[0];
         GfxPos[1] = GfxCur[1];
@@ -70,6 +67,11 @@ static void AppUpdate(void)
 
     if(!GfxBtn)
     {
+        if(GfxHot)
+        {
+            GfxPrevHot = GfxHot;
+        }
+
         GfxHot = 0;
     }
 }
