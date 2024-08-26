@@ -1,5 +1,16 @@
+gfx_img TestBmp;
+
 static void AppUpdate(void)
 {
+    static b32 Initialized = 0;
+    if(!Initialized)
+    {
+        Assert(gfxLoadBmp(&TestBmp, "test.bmp"));
+        TestBmp.Cols /= 4;
+        TestBmp.Rows /= 4;
+        Initialized = 1;
+    }
+
     glViewport(0, 0, (i32)GfxCols, (i32)GfxRows);
 
     glClearColor(0.0f, 0, 0, 0);
@@ -45,6 +56,8 @@ static void AppUpdate(void)
             gfxDebugPrint("C'mon man!\n");
         }
 
+        gfxImage(&TestBmp);
+
         static i32 RadioValue = 0;
         gfxRadioButton("Radio button 0", &RadioValue, 0);
         gfxRadioButton("Radio button 1", &RadioValue, 1);
@@ -57,13 +70,25 @@ static void AppUpdate(void)
 
         static f32 Slider1 = 125.0f;
         gfxSliderFloat(100.0f, 200.f, &Slider1, "%.1lf");
-
-        GfxPos[0] = GfxCur[0];
-        GfxPos[1] = GfxCur[1];
-        glColor3f(1.0f, 0.0f, 0.0f);
-        gfxString("I am moving");
     }
     gfxEnd();
+
+    gfxBegin();
+    {
+        GfxPos[0] += 500;
+        gfxGroupBox("Some group");
+
+        if(gfxButton("Yet another"))
+        {
+            gfxDebugPrint("Yet another");
+        }
+    }
+    gfxEnd();
+
+    GfxPos[0] = GfxCur[0];
+    GfxPos[1] = GfxCur[1];
+    glColor3f(1.0f, 0.0f, 0.0f);
+    gfxString("I am moving");
 
     if(!GfxBtn)
     {
