@@ -82,6 +82,14 @@ static void AppUpdate(void)
         {
             gfxDebugPrint("Yet another");
         }
+
+        static f32 Progress = 25.f;
+        gfxProgressBar(0.f, 100.f, &Progress, "%.0f%%");
+        Progress += 1;
+        if(Progress > 100)
+        {
+            Progress = 0;
+        }
     }
     gfxEnd();
 

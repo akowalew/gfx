@@ -1190,6 +1190,39 @@ static b32 gfxGroupBox(const char* Title)
     return Result;
 }
 
+static b32 gfxProgressBar(f32 Left, f32 Right, f32* V, const char* Fmt)
+{
+    b32 Result = 0;
+
+    f32 X1 = GfxPos[0];
+    f32 Y1 = GfxPos[1];
+    f32 X2 = X1 + 200;
+    f32 Y2 = Y1 + GfxFnt.Rows;
+
+    f32 XM = X1 + (X2 - X1) * (*V - Left) / (Right - Left);
+
+    glColor3f(32/255.f, 50/255.f, 77/255.f);
+    gfxRect(X1, Y1, X2, Y2);
+
+    glColor3f(61/255.f, 132/255.f, 221/255.f);
+    gfxRect(X1+1, Y1+1, XM-1, Y2-1);
+
+    if(!Fmt)
+    {
+        Fmt = "%.1lf";
+    }
+
+    glColor3f(1.f, 1.f, 1.f);
+
+    char Buffer[128];
+    usz Length = gfxFormat(Buffer, sizeof(Buffer), Fmt, *V);
+    GfxPos[0] = (X2 + X1 - Length * GfxFnt.Cols) / 2.f;
+    gfxText(Buffer, Length);
+    GfxPos[0] = X1;
+
+    return Result;
+}
+
 static void gfxBegin(void)
 {
     GfxPos[0] = GfxSep;
