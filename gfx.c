@@ -793,7 +793,7 @@ static void gfxText(const char* Text, usz Size)
 
     glBindTexture(GL_TEXTURE_2D, 0);
 
-#if 1
+#if 0
     glColor4f(1.0f, 0.0f, 0.0f, 1.0f);
     glBegin(GL_LINE_LOOP);
     glVertex2f(X1, Y1);
@@ -1169,7 +1169,7 @@ static b32 gfxGroupBox(const char* Title)
 
     f32 X1 = GfxPos[0];
     f32 Y1 = GfxPos[1] + GfxFnt.Rows/2;
-    f32 X2 = X1 + 300.0f;
+    f32 X2 = X1 + 400.0f;
     f32 Y2 = Y1 + 200.0f;
 
     glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
@@ -1219,6 +1219,38 @@ static b32 gfxProgressBar(f32 Left, f32 Right, f32* V, const char* Fmt)
     GfxPos[0] = (X2 + X1 - Length * GfxFnt.Cols) / 2.f;
     gfxText(Buffer, Length);
     GfxPos[0] = X1;
+
+    return Result;
+}
+
+static b32 gfxComboBox(const char** Choice, const char** Array, usz Count)
+{
+    b32 Result = 0;
+
+    v2f TL, BR;
+    TL[0] = GfxPos[0];
+    TL[1] = GfxPos[1];
+    BR[0] = GfxPos[0] + 300;
+    BR[1] = GfxPos[1] + GfxFnt.Rows;
+    switch(gfxProcessItem(Choice, TL, BR))
+    {
+        case GFX_ITEM_IDLE:   gfxColorRGB8(44, 74, 114);  break;
+        case GFX_ITEM_ACTIVE: gfxColorRGB8(15, 135, 250); break;
+        case GFX_ITEM_RELEASE:  Result = 1; // fallthrough
+        case GFX_ITEM_HOVER:  gfxColorRGB8(66, 150, 250); break;
+    }
+
+    gfxRect(TL[0], TL[1], BR[0], BR[1]);
+    glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
+    glBegin(GL_TRIANGLES);
+        glVertex2f(BR[0] - 1.5f * GfxFnt.Cols, TL[1] + GfxFnt.Rows * 0.25f);
+        glVertex2f(BR[0] - 0.5f * GfxFnt.Cols, TL[1] + GfxFnt.Rows * 0.25f);
+        glVertex2f(BR[0] - 1.0f * GfxFnt.Cols, BR[1] - GfxFnt.Rows * 0.25f);
+    glEnd();
+
+    GfxPos[0] += GfxFnt.Cols/2;
+    gfxString(*Choice);
+    GfxPos[0] -= GfxFnt.Cols/2;
 
     return Result;
 }

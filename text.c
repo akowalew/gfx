@@ -90,6 +90,10 @@ static void AppUpdate(void)
         {
             Progress = 0;
         }
+
+        static char* ComboChoice = "Select something";
+        static const char* ComboOptions[] = {"Option one", "Option two", "Option three"};
+        gfxComboBox(&ComboChoice, ComboOptions, 3);
     }
     gfxEnd();
 
